@@ -143,17 +143,17 @@ export default function Section2() {
         }
         newAnswers[questionId] = currentValues
       } else if (type === "radio") {
-        // Custom logic for radio: deselect if already selected
-        if (value === undefined || newAnswers[questionId] === value) {
-          // If undefined is passed, or same option clicked
+        if (value === undefined) {
+          // Deselect current option
           delete newAnswers[questionId]
-          // Clear associated 'other' input if it was 'มี' for surgery_history
+          // Clear associated input for surgery_history
           if (questionId === "surgery_history") {
             delete newAnswers["surgery_history_details"]
           }
         } else {
+          // Select new option
           newAnswers[questionId] = value as string
-          // Clear associated 'other' input if a new option is selected for surgery_history and it's not 'มี'
+          // Clear associated input if not selecting 'มี' for surgery_history
           if (questionId === "surgery_history" && value !== "มี") {
             delete newAnswers["surgery_history_details"]
           }
@@ -170,7 +170,7 @@ export default function Section2() {
         setShowValidation(false)
       }
     },
-    [answers, showValidation, isSurveyFinished], // Add isSurveyFinished to dependencies
+    [answers, isSurveyFinished, showValidation],
   )
 
   const generalQuestions = [
@@ -328,7 +328,7 @@ export default function Section2() {
             return false
           }
           if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
-            if (!answers[q.otherInputId!] || (answers[q.otherInputId!] as string).trim() === "") {
+            if (!answers[q.id] || (answers[q.otherInputId!] as string).trim() === "") {
               return false
             }
           }
@@ -364,7 +364,7 @@ export default function Section2() {
           if (!selectedOptions || selectedOptions.length === 0) {
             isQuestionAnswered = false
           } else if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
-            if (!answers[questionId] || (answers[q.otherInputId!] as string).trim() === "") {
+            if (!answers[q.id] || (answers[q.otherInputId!] as string).trim() === "") {
               isQuestionAnswered = false
             }
           }
@@ -393,7 +393,7 @@ export default function Section2() {
     <div className="min-h-screen bg-gradient-to-b from-blue-100 via-white to-blue-100 px-4 py-10 flex justify-center font-sans">
       <div className="w-full max-w-sm sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl bg-white min-h-screen shadow-lg flex flex-col">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
+        <div className="bg-white border-b shadow-sm">
           <div className="flex items-center p-3 sm:p-4 md:p-5 lg:p-6">
             <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl font-medium text-gray-900 leading-tight">
               ส่วนที่ 2: ข้อมูลทั่วไป
@@ -491,29 +491,29 @@ export default function Section2() {
                         key={option}
                         onClick={() => {
                           if (answers[q.id] === option) {
-                            handleAnswerChange(q.id, undefined, "radio") // Deselect
+                            // If clicking the same option, deselect it
+                            handleAnswerChange(q.id, undefined, "radio")
                           } else {
-                            handleAnswerChange(q.id, option, "radio") // Select
+                            // If clicking a different option, select it
+                            handleAnswerChange(q.id, option, "radio")
                           }
                         }}
                         className={`flex items-start sm:items-center p-2 sm:p-2.5 md:p-3 border rounded-md sm:rounded-lg cursor-pointer transition-all duration-200 ${
                           answers[q.id] === option
-                            ? "bg-blue-50 border-blue-300 shadow-sm"
-                            : "border-gray-200 bg-white hover:bg-gray-50 hover:border-blue-300 hover:shadow-sm"
+                            ? "border-blue-500 bg-blue-50 text-blue-700"
+                            : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
                         }`}
                       >
                         <RadioGroupItem
                           value={option}
                           id={`${q.id}-${option}`}
                           checked={answers[q.id] === option}
-                          onClick={(e) => e.stopPropagation()} // Prevent parent div's click from interfering
-                          className="flex-shrink-0 mt-0.5 sm:mt-0"
+                          className="mt-0.5 sm:mt-0"
+                          readOnly
                         />
                         <Label
                           htmlFor={`${q.id}-${option}`}
-                          className={`ml-1.5 sm:ml-2 md:ml-2.5 text-xs sm:text-sm md:text-sm lg:text-base leading-relaxed cursor-pointer ${
-                            answers[q.id] === option ? "text-blue-700 font-medium" : "text-gray-700"
-                          }`}
+                          className="ml-2 text-sm sm:text-base cursor-pointer flex-1"
                         >
                           {option}
                         </Label>
