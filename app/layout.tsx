@@ -6,7 +6,7 @@ import React from 'react'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Thai Survey Forms',
+  title: 'Nutritional',
   description: 'Thai language survey questionnaire',
     generator: 'v0.dev'
 }
