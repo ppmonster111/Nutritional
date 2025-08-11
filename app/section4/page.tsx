@@ -130,7 +130,7 @@ export default function Section4() {
     <div className="min-h-screen bg-gradient-to-b from-blue-100 via-white to-blue-100 px-4 py-10 flex justify-center font-sans">
       <div className="w-full max-w-sm sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl bg-white min-h-screen shadow-lg flex flex-col">
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
+        <div className="bg-white border-b shadow-sm">
           <div className="flex items-center p-3 sm:p-4 md:p-5 lg:p-6">
             <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl font-medium text-gray-900 leading-tight">
               ส่วนที่ 4: ความรู้ ทักษะ และการรับรู้ด้านโภชนาการ
