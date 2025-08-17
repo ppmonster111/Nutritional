@@ -64,16 +64,16 @@ const config: Config = {
           ring: "hsl(var(--sidebar-ring))",
         },
         bmi: {
-          underweight: "#4FC3F7",
-          normal: "#4CAF50",
-          overweight: "#FFEB3B",
-          obese1: "#FF9800",
-          obese2: "#F44336",
+          underweight: "#1565C0", // น้ำเงินเข้ม
+          normal: "#2E7D32", // เขียวเข้ม
+          overweight: "#F57F17", // เหลืองเข้ม
+          obese1: "#E65100", // ส้มเข้ม
+          obese2: "#C62828", // แดงเข้ม
         },
         bsa: {
-          small: "#81D4FA",
-          normal: "#A5D6A7",
-          large: "#FFCC80",
+          small: "#0D47A1", // น้ำเงินเข้มมาก
+          normal: "#1B5E20", // เขียวเข้มมาก
+          large: "#E65100", // ส้มเข้ม
         },
       },
       borderRadius: {
