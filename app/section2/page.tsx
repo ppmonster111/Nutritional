@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { ArrowLeft, ArrowRight, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea" // New import for Textarea component
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -597,13 +598,12 @@ export default function Section2() {
                         </Label>
                         {(answers[q.id] as string[] | undefined)?.includes("อื่นๆ") && (
                           // Prevent click on input from toggling checkbox
-                          <Input
-                            type="text"
+                          <Textarea
                             value={(answers[q.otherInputId!] as string) || ""}
                             onChange={(e) => handleAnswerChange(q.otherInputId!, e.target.value, "other_input", q)} // Pass q here
                             onClick={(e) => e.stopPropagation()} // Stop propagation for input clicks
                             placeholder="ระบุ"
-                            className="ml-1.5 flex-grow px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            className="ml-1.5 flex-grow px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 min-h-[60px] resize-y"
                             disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")} // Disable input if "ไม่มี" is selected
                           />
                         )}
@@ -619,13 +619,12 @@ export default function Section2() {
                       โปรดระบุรายละเอียดการผ่าตัด:
                       {q.required && <span className="text-red-500 ml-1">*</span>}
                     </Label>
-                    <Input
+                    <Textarea
                       id={q.otherInputId!}
-                      type="text"
                       value={(answers[q.otherInputId!] as string) || ""}
                       onChange={(e) => handleAnswerChange(q.otherInputId!, e.target.value, "other_input")}
                       placeholder="เช่น ผ่าตัดไส้ติ่งเมื่อปี 2566"
-                      className="mt-1 block w-full px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className="mt-1 block w-full px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 min-h-[80px] resize-y"
                     />
                   </div>
                 )}
