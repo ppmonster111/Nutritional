@@ -328,7 +328,7 @@ export default function Section2() {
             return false
           }
           if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
-            if (!answers[q.id] || (answers[q.otherInputId!] as string).trim() === "") {
+            if (!answers[q.otherInputId!] || (answers[q.otherInputId!] as string).trim() === "") {
               return false
             }
           }
@@ -360,11 +360,11 @@ export default function Section2() {
             }
           }
         } else if (q.type === "checkbox") {
-          const selectedOptions = answers[questionId] as string[]
+          const selectedOptions = answers[q.id] as string[]
           if (!selectedOptions || selectedOptions.length === 0) {
             isQuestionAnswered = false
           } else if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
-            if (!answers[q.id] || (answers[q.otherInputId!] as string).trim() === "") {
+            if (!answers[q.otherInputId!] || (answers[q.otherInputId!] as string).trim() === "") {
               isQuestionAnswered = false
             }
           }
@@ -433,7 +433,7 @@ export default function Section2() {
         </div>
 
         {/* Content */}
-        <div className="flex-grow p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-4 sm:space-y-5 md:space-y-6">
+        <div className="flex-grow p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-2 sm:space-y-3 md:space-y-4">
           {" "}
           {/* Adjusted space-y */}
           {generalQuestions.map((q, index) => {
@@ -462,7 +462,7 @@ export default function Section2() {
               <div
                 key={q.id}
                 id={q.id}
-                className={`space-y-3 sm:space-y-4 p-3 sm:p-4 md:p-5 rounded-lg transition-all duration-200 shadow-sm ${
+                className={`space-y-2 sm:space-y-3 p-3 sm:p-4 md:p-5 rounded-lg transition-all duration-200 shadow-sm ${
                   isHighlighted ? "bg-red-50 border-2 border-red-200" : "bg-gray-50"
                 }`}
               >
