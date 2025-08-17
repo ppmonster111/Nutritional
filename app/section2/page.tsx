@@ -44,7 +44,8 @@ export default function Section2() {
 
       // Du Bois formula for BSA: 0.007184 * W^0.425 * H^0.725
       const calculatedBsa = 0.007184 * Math.pow(weightKg, 0.425) * Math.pow(heightCm, 0.725)
-      setBsa(calculatedBsa.toFixed(2))
+      const bsaValue = calculatedBsa.toFixed(2)
+      setBsa(bsaValue)
     } else {
       setBmi(null)
       setBsa(null)
@@ -55,9 +56,9 @@ export default function Section2() {
   const getBmiColorClass = (bmiValue: number | null) => {
     if (bmiValue === null) return "text-gray-700"
     if (bmiValue < 18.5) return "text-bmi-underweight"
-    if (bmiValue >= 18.5 && bmiValue <= 22.9) return "text-bmi-normal"
-    if (bmiValue >= 23 && bmiValue <= 24.9) return "text-bmi-overweight"
-    if (bmiValue >= 25 && bmiValue <= 29.9) return "text-bmi-obese1"
+    if (bmiValue >= 18.5 && bmiValue < 23) return "text-bmi-normal"
+    if (bmiValue >= 23 && bmiValue < 25) return "text-bmi-overweight"
+    if (bmiValue >= 25 && bmiValue < 30) return "text-bmi-obese1"
     if (bmiValue >= 30) return "text-bmi-obese2"
     return "text-gray-700"
   }
@@ -66,9 +67,9 @@ export default function Section2() {
   const getBmiStatusText = (bmiValue: number | null) => {
     if (bmiValue === null) return ""
     if (bmiValue < 18.5) return "น้ำหนักน้อย"
-    if (bmiValue >= 18.5 && bmiValue <= 22.9) return "น้ำหนักปกติ"
-    if (bmiValue >= 23 && bmiValue <= 24.9) return "น้ำหนักเกิน"
-    if (bmiValue >= 25 && bmiValue <= 29.9) return "โรคอ้วน ระดับ 1"
+    if (bmiValue >= 18.5 && bmiValue < 23) return "น้ำหนักปกติ"
+    if (bmiValue >= 23 && bmiValue < 25) return "น้ำหนักเกิน"
+    if (bmiValue >= 25 && bmiValue < 30) return "โรคอ้วน ระดับ 1"
     if (bmiValue >= 30) return "โรคอ้วน ระดับ 2"
     return ""
   }
@@ -78,16 +79,24 @@ export default function Section2() {
     if (bsaValue === null) return "text-gray-700"
     if (bsaValue < 1.4) return "text-bsa-small"
     if (bsaValue >= 1.4 && bsaValue <= 1.9) return "text-bsa-normal"
-    if (bsaValue >= 2.0) return "text-bsa-large"
+    if (bsaValue > 1.9) return "text-bsa-large"
     return "text-gray-700"
   }
 
   // Function to get BSA status text
   const getBsaStatusText = (bsaValue: number | null) => {
-    if (bsaValue === null) return ""
-    if (bsaValue < 1.4) return "ร่างกายเล็ก"
-    if (bsaValue >= 1.4 && bsaValue <= 1.9) return "ร่างกายปกติ"
-    if (bsaValue >= 2.0) return "ร่างกายใหญ่"
+    if (bsaValue === null || isNaN(bsaValue)) {
+      return ""
+    }
+    if (bsaValue < 1.4) {
+      return "ร่างกายเล็ก"
+    }
+    if (bsaValue >= 1.4 && bsaValue <= 1.9) {
+      return "ร่างกายปกติ"
+    }
+    if (bsaValue > 1.9) {
+      return "ร่างกายใหญ่"
+    }
     return ""
   }
 
@@ -633,7 +642,10 @@ export default function Section2() {
                   <p className="text-sm md:text-base text-gray-700">
                     BSA:{" "}
                     <span className={`font-semibold ${getBsaColorClass(Number.parseFloat(bsa))}`}>
-                      {bsa} ({getBsaStatusText(Number.parseFloat(bsa))})
+                      {bsa}
+                      {getBsaStatusText(Number.parseFloat(bsa)) && (
+                        <span> ({getBsaStatusText(Number.parseFloat(bsa))})</span>
+                      )}
                     </span>
                   </p>
                 )}
