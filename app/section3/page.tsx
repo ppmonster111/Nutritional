@@ -7,7 +7,10 @@ import Link from "next/link"
 export default function Section3() {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [showValidation, setShowValidation] = useState(false)
-  const [isSurveyFinished, setIsSurveyFinished] = useState(false) // New state for finished flag
+  const [isSurveyFinished, setIsSurveyFinished] = useState(false)
+  const [sugarScore, setSugarScore] = useState(0)
+  const [fatScore, setFatScore] = useState(0)
+  const [sodiumScore, setSodiumScore] = useState(0)
 
   // Load answers and finished flag from sessionStorage on component mount
   useEffect(() => {
@@ -25,6 +28,12 @@ export default function Section3() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
+
+  useEffect(() => {
+    setSugarScore(calculateSectionScore(0))
+    setFatScore(calculateSectionScore(1))
+    setSodiumScore(calculateSectionScore(2))
+  }, [answers])
 
   const handleAnswerChange = (questionId: string, value: string) => {
     // Prevent saving if the survey is already marked as finished
@@ -66,16 +75,6 @@ export default function Section3() {
     {
       title: "3.2 ประเมินนิสัยการบริโภคไขมัน",
       questions: [
-        "ชิมอาหารก่อนปรุง น้ำปลา ซีอิ้ว ซอส",
-        "กินอาหารที่มีสมุนไพรหรือเครื่องเทศ เป็นส่วนประกอบ",
-        "กินเนื้อสัตว์แปรรูป ไส้กรอก หมูยอ แฮม ปลาทูเค็ม กุ้งแห้ง ปลาร้า",
-        "กินอาหารสำเร็จรูปหรืออาหารแช่แข็ง",
-        "กินผักผลไม้ดองหรือผลไม้แช่อิ่ม",
-      ],
-    },
-    {
-      title: "3.3 ประเมินนิสัยการบริโภคโซเดียม",
-      questions: [
         "เลือกกินเนื้อสัตว์ไม่ติดมัน ไม่ติดหนัง",
         "ทอดอาหาร ผัดอาหาร หรือใช้น้ำมัน",
         "กินอาหารจานเดียว ไขมันสูง หรืออาหารแกงกะทิ",
@@ -83,11 +82,104 @@ export default function Section3() {
         "ซดน้ำผัก/น้ำแกง หรือ ราดน้ำผักน้ำแกงลงในข้าว",
       ],
     },
+    {
+      title: "3.3 ประเมินนิสัยการบริโภคโซเดียม",
+      questions: [
+        "ชิมอาหารก่อนปรุง น้ำปลา ซีอิ้ว ซอส",
+        "กินอาหารที่มีสมุนไพรหรือเครื่องเทศ เป็นส่วนประกอบ",
+        "กินเนื้อสัตว์แปรรูป ไส้กรอก หมูยอ แฮม ปลาทูเค็ม กุ้งแห้ง ปลาร้า",
+        "กินอาหารสำเร็จรูปหรืออาหารแช่แข็ง",
+        "กินผักผลไม้ดองหรือผลไม้แช่อิ่ม",
+      ],
+    },
   ]
 
   const options = ["ทุกวัน/เกือบทุกวัน", "3-4 ต่อสัปดาห์", "แทบไม่ทำ/ไม่ทำเลย"]
 
-  // Check if all questions are answered
+  const calculateSectionScore = (sectionIndex: number) => {
+    let score = 0
+    sections[sectionIndex].questions.forEach((_, questionIndex) => {
+      const questionId = `section${sectionIndex + 1}_q${questionIndex + 1}`
+      const answer = answers[questionId]
+      if (answer) {
+        // คะแนนตามตัวเลือก: ทุกวัน = 3, 3-4 ต่อสัปดาห์ = 2, แทบไม่ทำ = 1
+        if (answer === "ทุกวัน/เกือบทุกวัน") score += 3
+        else if (answer === "3-4 ต่อสัปดาห์") score += 2
+        else if (answer === "แทบไม่ทำ/ไม่ทำเลย") score += 1
+      }
+    })
+    return score
+  }
+
+  const getScoreMessage = (score: number, type: "sugar" | "fat" | "sodium") => {
+    if (score === 5) {
+      if (type === "sugar") return "ยินดีด้วย คุณบริโภคน้ำตาลในปริมาณที่พอเหมาะ"
+      if (type === "fat") return "คุณมีความเสี่ยงน้อยในการได้รับผลเสียจากการบริโภคไขมันไม่เหมาะสม"
+      if (type === "sodium") return "ยินดีด้วยคุณได้รับโซเดียมในปริมาณที่น้อย ทำดีแล้วนะ"
+    } else if (score >= 6 && score <= 9) {
+      if (type === "sugar") return "คุณมีความเสี่ยงปานกลางในแง่ของพฤติกรรมการบริโภคน้ำตาล"
+      if (type === "fat") return "คุณมีความเสี่ยงปานกลางในการเลือกบริโภคไขมัน"
+      if (type === "sodium") return "คุณได้รับโซเดียมในระดับปานกลาง ยังถือว่าไม่มีอันตรายอะไรมากต่อสุขภาพ"
+    } else if (score >= 10 && score <= 13) {
+      if (type === "sugar") return "คุณมีความเสี่ยงสูงในแง่ของพฤติกรรมการบริโภคน้ำตาล"
+      if (type === "fat") return "คุณมีความเสี่ยงสูงในการเลือกบริโภคไขมัน"
+      if (type === "sodium") return "คุณได้รับโซเดียมในปริมาณสูงแน่ๆ ถึงเวลาตระหนักถึงพฤติกรรมการบริโภคได้แล้ว"
+    } else if (score >= 14 && score <= 15) {
+      if (type === "sugar") return "รู้ตัวบ้างไหม? ว่าคุณมีความเสี่ยงสูงมาก กับการได้รับน้ำตาลเกิน"
+      if (type === "fat") return "เฮ้อมือมิจูรษา!!!! คุณมีพฤติกรรมการบริโภคไขมันที่อันตรายต่อชีวิตคุณมาก"
+      if (type === "sodium") return "คุณได้รับโซเดียมสูงมากกก แนะนำให้ปรับเปลี่ยนพฤติกรรมการบริโภคโดยด่วน"
+    }
+    return ""
+  }
+
+  const getScoreColor = (score: number) => {
+    if (score === 5) return "green"
+    if (score >= 6 && score <= 9) return "yellow"
+    if (score >= 10 && score <= 13) return "orange"
+    if (score >= 14 && score <= 15) return "red"
+    return "gray"
+  }
+
+  const getScoreColorClasses = (color: string) => {
+    switch (color) {
+      case "green":
+        return {
+          bg: "bg-green-50",
+          border: "border-green-500",
+          text: "text-green-800",
+          badge: "bg-green-100 text-green-800",
+        }
+      case "yellow":
+        return {
+          bg: "bg-yellow-50",
+          border: "border-yellow-500",
+          text: "text-yellow-800",
+          badge: "bg-yellow-100 text-yellow-800",
+        }
+      case "orange":
+        return {
+          bg: "bg-orange-50",
+          border: "border-orange-500",
+          text: "text-orange-800",
+          badge: "bg-orange-100 text-orange-800",
+        }
+      case "red":
+        return {
+          bg: "bg-red-50",
+          border: "border-red-500",
+          text: "text-red-800",
+          badge: "bg-red-100 text-red-800",
+        }
+      default:
+        return {
+          bg: "bg-gray-50",
+          border: "border-gray-500",
+          text: "text-gray-800",
+          badge: "bg-gray-100 text-gray-800",
+        }
+    }
+  }
+
   const getTotalQuestions = () => {
     return sections.reduce((total, section) => total + section.questions.length, 0)
   }
@@ -109,7 +201,6 @@ export default function Section3() {
     return getAnsweredQuestions() === getTotalQuestions()
   }
 
-  // Update the handleNext function to scroll to the first unanswered question
   const handleNext = () => {
     if (!isAllAnswered()) {
       setShowValidation(true)
@@ -190,82 +281,111 @@ export default function Section3() {
 
         {/* Content */}
         <div className="flex-grow p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-6 sm:space-y-7 md:space-y-8 lg:space-y-10">
-          {sections.map((section, sectionIndex) => (
-            <div key={sectionIndex} className="space-y-4 sm:space-y-5 md:space-y-6">
-              <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-medium text-blue-600 leading-relaxed border-l-4 border-blue-500 pl-3 sm:pl-4">
-                {section.title}
-              </h2>
+          {sections.map((section, sectionIndex) => {
+            const sectionScore = sectionIndex === 0 ? sugarScore : sectionIndex === 1 ? fatScore : sodiumScore
+            const sectionType = sectionIndex === 0 ? "sugar" : sectionIndex === 1 ? "fat" : "sodium"
+            const scoreColor = getScoreColor(sectionScore)
+            const colorClasses = getScoreColorClasses(scoreColor)
+            const scoreMessage = getScoreMessage(sectionScore, sectionType)
 
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse bg-gray-50 rounded-lg shadow-sm">
-                  <thead>
-                    <tr className="bg-gray-100 border-b border-gray-200">
-                      <th className="p-2 text-left text-xs sm:text-sm font-semibold text-gray-700 min-w-[120px] sm:min-w-[180px] md:min-w-[220px] lg:min-w-[250px]">
-                        รายการ
-                      </th>
-                      {options.map((option, optionIndex) => (
-                        <th
-                          key={optionIndex}
-                          className="p-2 text-center text-xs sm:text-sm font-semibold text-gray-700"
-                        >
-                          <div className="w-full min-w-[160px] sm:min-w-[180px] md:min-w-[200px] lg:min-w-[220px]">
-                            {option}
-                          </div>
+            return (
+              <div key={sectionIndex} className="space-y-4 sm:space-y-5 md:space-y-6">
+                <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-medium text-blue-600 leading-relaxed border-l-4 border-blue-500 pl-3 sm:pl-4">
+                  {section.title}
+                </h2>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse bg-gray-50 rounded-lg shadow-sm">
+                    <thead>
+                      <tr className="bg-gray-100 border-b border-gray-200">
+                        <th className="p-2 text-left text-xs sm:text-sm font-semibold text-gray-700 min-w-[120px] sm:min-w-[180px] md:min-w-[220px] lg:min-w-[250px]">
+                          รายการ
                         </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {section.questions.map((question, questionIndex) => {
-                      const questionId = `section${sectionIndex + 1}_q${questionIndex + 1}`
-                      const isAnswered = !!answers[questionId]
-                      const isHighlighted = showValidation && !isAnswered
+                        {options.map((option, optionIndex) => (
+                          <th
+                            key={optionIndex}
+                            className="p-2 text-center text-xs sm:text-sm font-semibold text-gray-700"
+                          >
+                            <div className="w-full min-w-[160px] sm:min-w-[180px] md:min-w-[200px] lg:min-w-[220px]">
+                              {option}
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {section.questions.map((question, questionIndex) => {
+                        const questionId = `section${sectionIndex + 1}_q${questionIndex + 1}`
+                        const isAnswered = !!answers[questionId]
+                        const isHighlighted = showValidation && !isAnswered
 
-                      return (
-                        <tr
-                          key={questionId}
-                          id={questionId}
-                          className={`border-b border-gray-200 last:border-b-0 transition-all duration-200 ${
-                            isHighlighted ? "bg-red-50" : "hover:bg-white"
-                          }`}
-                        >
-                          <td className="p-2 text-xs sm:text-sm text-gray-800 font-medium">
-                            {question}
-                            {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 inline-block ml-2" />}
-                          </td>
-                          {options.map((option, optionIndex) => (
-                            <td key={optionIndex} className="p-1 text-center">
-                              <div
-                                onClick={() => handleAnswerChange(questionId, option)}
-                                className={`flex items-center justify-center w-full h-full py-1.5 px-0.5 rounded-md cursor-pointer transition-all duration-200 border-2 ${
-                                  answers[questionId] === option
-                                    ? "bg-blue-100 border-blue-500"
-                                    : "border-transparent hover:bg-blue-50 hover:border-blue-200"
-                                }`}
-                                style={{ minWidth: "160px" }}
-                              >
-                                <div
-                                  className={`w-3.5 h-3.5 border-2 rounded-full flex items-center justify-center transition-all duration-200 ${
-                                    answers[questionId] === option
-                                      ? "border-blue-600 bg-blue-600"
-                                      : "border-gray-300 bg-white"
-                                  }`}
-                                >
-                                  {answers[questionId] === option && (
-                                    <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                                  )}
-                                </div>
-                              </div>
+                        return (
+                          <tr
+                            key={questionId}
+                            id={questionId}
+                            className={`border-b border-gray-200 last:border-b-0 transition-all duration-200 ${
+                              isHighlighted ? "bg-red-50" : "hover:bg-white"
+                            }`}
+                          >
+                            <td className="p-2 text-xs sm:text-sm text-gray-800 font-medium">
+                              {question}
+                              {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 inline-block ml-2" />}
                             </td>
-                          ))}
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                            {options.map((option, optionIndex) => (
+                              <td key={optionIndex} className="p-1 text-center">
+                                <div
+                                  onClick={() => handleAnswerChange(questionId, option)}
+                                  className={`flex items-center justify-center w-full h-full py-1.5 px-0.5 rounded-md cursor-pointer transition-all duration-200 border-2 ${
+                                    answers[questionId] === option
+                                      ? "bg-blue-100 border-blue-500"
+                                      : "border-transparent hover:bg-blue-50 hover:border-blue-200"
+                                  }`}
+                                  style={{ minWidth: "160px" }}
+                                >
+                                  <div
+                                    className={`w-3.5 h-3.5 border-2 rounded-full flex items-center justify-center transition-all duration-200 ${
+                                      answers[questionId] === option
+                                        ? "border-blue-600 bg-blue-600"
+                                        : "border-gray-300 bg-white"
+                                    }`}
+                                  >
+                                    {answers[questionId] === option && (
+                                      <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div
+                  className={`${colorClasses.bg} p-3 sm:p-4 md:p-5 lg:p-6 rounded-lg space-y-2 sm:space-y-3 border-l-4 ${colorClasses.border}`}
+                >
+                  <h3 className={`text-sm sm:text-base md:text-lg lg:text-xl font-medium ${colorClasses.text}`}>
+                    ผลการประเมิน
+                  </h3>
+                  <div className="space-y-1 sm:space-y-2">
+                    <p className={`text-xs sm:text-sm md:text-base lg:text-lg ${colorClasses.text}`}>
+                      <span className="font-medium">คะแนน:</span>
+                      <span className={`ml-2 px-2 py-1 rounded-md font-bold ${colorClasses.badge}`}>
+                        {sectionScore}
+                      </span>
+                    </p>
+                    {scoreMessage && (
+                      <p className={`text-xs sm:text-sm md:text-base lg:text-lg ${colorClasses.text} leading-relaxed`}>
+                        {scoreMessage}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Navigation Buttons */}
