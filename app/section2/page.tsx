@@ -31,16 +31,6 @@ export default function Section2() {
     }
   }, [])
 
-  // ทดสอบการตั้งค่า line_user_id ใน sessionStorage
-  useEffect(() => {
-  if (typeof window === "undefined") return
-  const current = sessionStorage.getItem("line_user_id")
-  if (!current) {
-    const devId = process.env.NEXT_PUBLIC_DEV_LINE_USER_ID
-    if (devId) sessionStorage.setItem("line_user_id", devId)
-  }
-}, [])
-
   useEffect(() => {
   (async () => {
     const lineUserId = sessionStorage.getItem("line_user_id") || ""
