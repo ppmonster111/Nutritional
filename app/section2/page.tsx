@@ -9,13 +9,16 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 
+import { ensureUserAndSession, saveSection2Answers } from "@/lib/surveySession"
+
 export default function Section2() {
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [showValidation, setShowValidation] = useState(false)
   const [bmi, setBmi] = useState<string | null>(null)
   const [bsa, setBsa] = useState<string | null>(null)
   const [isSurveyFinished, setIsSurveyFinished] = useState(false) // New state for finished flag
-
+  
+  
   // Load answers and finished flag from sessionStorage on component mount
   useEffect(() => {
     const savedAnswers = sessionStorage.getItem("surveyAnswers")
@@ -27,6 +30,27 @@ export default function Section2() {
       setIsSurveyFinished(true)
     }
   }, [])
+
+  // ทดสอบการตั้งค่า line_user_id ใน sessionStorage
+  useEffect(() => {
+  if (typeof window === "undefined") return
+  const current = sessionStorage.getItem("line_user_id")
+  if (!current) {
+    const devId = process.env.NEXT_PUBLIC_DEV_LINE_USER_ID
+    if (devId) sessionStorage.setItem("line_user_id", devId)
+  }
+}, [])
+
+  useEffect(() => {
+  (async () => {
+    const lineUserId = sessionStorage.getItem("line_user_id") || ""
+    const stored = sessionStorage.getItem("session_id")
+    if (!stored) {
+      const { sessionId } = await ensureUserAndSession(lineUserId)
+      sessionStorage.setItem("session_id", sessionId)
+    }
+  })()
+}, [])
 
   // Scroll to top when the component mounts
   useEffect(() => {
@@ -194,7 +218,7 @@ export default function Section2() {
       layout: "flex flex-wrap gap-x-4 gap-y-2",
     },
     {
-      id: "year",
+      id: "year_level",
       label: "ชั้นปี",
       type: "radio",
       options: ["ชั้นปีที่ 4", "ชั้นปีที่ 5", "ชั้นปีที่ 6"],
@@ -348,7 +372,10 @@ export default function Section2() {
     return true
   }
 
-  const handleNext = () => {
+  const handleNext = async () => {
+
+    console.log("answers:", answers);
+
     if (!isAllAnswered()) {
       setShowValidation(true)
 
@@ -396,7 +423,11 @@ export default function Section2() {
       }
       return
     }
+
+    const sessionId = sessionStorage.getItem("session_id") || ""
+    await saveSection2Answers(sessionId, answers)
     window.location.href = "/section3"
+
   }
 
   return (
@@ -682,3 +713,5 @@ export default function Section2() {
     </div>
   )
 }
+
+

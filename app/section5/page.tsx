@@ -5,6 +5,8 @@ import { ArrowLeft, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation" // Import useRouter
 
+import { saveSection5Answers, finalizeSurvey } from "@/lib/surveySession"
+
 export default function Section5() {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [totalScore, setTotalScore] = useState(0)
@@ -93,7 +95,7 @@ export default function Section5() {
   }
 
   // Update the handleFinish function to scroll to the first unanswered question
-  const handleFinish = () => {
+  const handleFinish = async () => {
     if (!isAllAnswered()) {
       setShowValidation(true)
 
@@ -124,8 +126,19 @@ export default function Section5() {
     sessionStorage.setItem("isSurveyFinished", "true")
     setIsSurveyFinished(true) // Update local state
 
-    // Navigate to the thank you page
+    // ✅ บันทึกให้เสร็จก่อน แล้วค่อย set finished + redirect
+    const sessionId = sessionStorage.getItem("session_id") || ""
+
+    // ถ้าใช้เวอร์ชันใหม่ (คำนวณคะแนนใน lib)
+    const { total, stressLevel: level } = await saveSection5Answers(sessionId, answers)
+    await finalizeSurvey(sessionId)
+
+    // ค่อย mark ว่าเสร็จ
+    sessionStorage.setItem("isSurveyFinished", "true")
+    setIsSurveyFinished(true)
+
     router.push("/thank-you")
+
   }
 
   const clearAllData = () => {

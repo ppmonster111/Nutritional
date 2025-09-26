@@ -4,6 +4,9 @@ import { useState, useEffect } from "react"
 import { ArrowLeft, ArrowRight, AlertCircle } from "lucide-react"
 import Link from "next/link"
 
+import { saveSection4Answers } from "@/lib/surveySession"
+
+
 export default function Section4() {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [showValidation, setShowValidation] = useState(false)
@@ -91,7 +94,7 @@ export default function Section4() {
   }
 
   // Update the handleNext function to scroll to the first unanswered question
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!isAllAnswered()) {
       setShowValidation(true)
 
@@ -117,8 +120,10 @@ export default function Section4() {
       }
       return
     }
-    // Navigate to next page
+    const sessionId = sessionStorage.getItem("session_id") || ""
+    await saveSection4Answers(sessionId, answers)
     window.location.href = "/section5"
+
   }
 
   const clearAllData = () => {

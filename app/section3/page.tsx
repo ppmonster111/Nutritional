@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { ArrowRight, AlertCircle, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
+import { saveSection3Answers } from "@/lib/surveySession"
+
 export default function Section3() {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [showValidation, setShowValidation] = useState(false)
@@ -76,8 +78,8 @@ export default function Section3() {
       title: "3.2 ประเมินนิสัยการบริโภคไขมัน",
       questions: [
         "เลือกกินเนื้อสัตว์ไม่ติดมัน ไม่ติดหนัง",
-        "ทอดอาหาร ผัดอาหาร หรือใช้น้ำมัน",
-        "กินอาหารจานเดียว ไขมันสูง หรืออาหารแกงกะทิ",
+        "กินอาหารทอด อาหารฟาสต์ฟู้ด อาหารผัดน้ำมัน",
+        "กินอาหารจานเดียว ไขมันสูง หรืออาหารประเภทแกงกะทิ",
         "ดื่มเครื่องดื่มที่ผสมนมข้นหวาน ครีมเทียม วิปปิ้งครีม",
         "ซดน้ำผัก/น้ำแกง หรือ ราดน้ำผักน้ำแกงลงในข้าว",
       ],
@@ -201,12 +203,12 @@ export default function Section3() {
     return getAnsweredQuestions() === getTotalQuestions()
   }
 
-  const handleNext = () => {
+
+  // Update the handleNext function to scroll to the first unanswered question
+  const handleNext = async () => {
     if (!isAllAnswered()) {
       setShowValidation(true)
-
-      // Find the first unanswered question and scroll to it
-      let firstUnansweredElement = null
+      let firstUnansweredElement: HTMLElement | null = null
       sections.forEach((section, sectionIndex) => {
         section.questions.forEach((_, questionIndex) => {
           const questionId = `section${sectionIndex + 1}_q${questionIndex + 1}`
@@ -215,19 +217,20 @@ export default function Section3() {
           }
         })
       })
-
       if (firstUnansweredElement) {
-        firstUnansweredElement.scrollIntoView({
+        (firstUnansweredElement as HTMLElement).scrollIntoView({
           behavior: "smooth",
           block: "center",
         })
       } else {
-        // Fallback to scroll to top if element not found
         window.scrollTo({ top: 0, behavior: "smooth" })
       }
+
       return
     }
-    // Navigate to next page
+
+    const sessionId = sessionStorage.getItem("session_id") || ""
+    await saveSection3Answers(sessionId, answers)
     window.location.href = "/section4"
   }
 
