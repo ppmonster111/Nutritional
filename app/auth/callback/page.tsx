@@ -1,23 +1,20 @@
+import { redirect } from 'next/navigation'
+import { supabaseServer } from '@/lib/supabase/server'
 
-import { useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { supabaseBrowser } from '@/lib/supabase/browser'
+export default async function CallbackPage({
+    searchParams,
+}: {
+    searchParams: { [key: string]: string | string[] | undefined }
+}) {
+    const supabase = supabaseServer()
 
-export default function AuthCallbackPage() {
-    const router = useRouter()
-    const params = useSearchParams()
+    const raw = searchParams.code
+    const code = Array.isArray(raw) ? raw[0] : raw
 
-    useEffect(() => {
-        const run = async () => {
-            const code = params.get('code')
-            const next = params.get('redirect_to') ?? '/'
-            if (code) {
-                await supabaseBrowser().auth.exchangeCodeForSession(code)
-            }
-            router.replace(next)
-        }
-        run()
-    }, [params, router])
+    if (typeof code === 'string') {
+        const { error } = await supabase.auth.exchangeCodeForSession(code) // <- ส่งเป็น string
+        if (error) redirect('/?auth=failed')
+    }
 
-    return <div className="p-6">กำลังเข้าสู่ระบบ…</div>
+    redirect('/')
 }
