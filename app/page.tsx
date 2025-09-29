@@ -178,7 +178,7 @@ export default function Home() {
             }`}
             disabled={!isConsentChecked && showConsentWarning} // Disable button if warning is shown and not consented
           >
-            เริ่มทำแบบสอบถาม
+            เริ่มทำแบบประเมิน
           </button>
         </div>
       </div>
