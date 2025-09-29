@@ -177,8 +177,7 @@ export async function saveSection2Answers(
         current_department,
     }
 
-    //payload.bmi = bmi
-    //payload.bsa = bsa
+
 
     const { error } = await supabase
         .from("survey_section2")
