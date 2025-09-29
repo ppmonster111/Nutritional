@@ -1,7 +1,6 @@
-// lib/surveySession.ts
 "use client"
 
-import { supabaseBrowser } from "@/lib/supabaseClient"
+import { supabaseBrowser } from '@/lib/supabase/browser'
 
 /** utils: รวมค่า checkbox + "อื่นๆ" ให้เป็นสตริงเดียว */
 const joinWithOther = (arr: string[] | undefined, other?: string) => {
