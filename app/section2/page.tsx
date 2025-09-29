@@ -31,17 +31,24 @@ export default function Section2() {
     }
   }, [])
 
-  useEffect(() => {
-  (async () => {
-    const lineUserId = sessionStorage.getItem("line_user_id") || ""
-    const stored = sessionStorage.getItem("session_id")
-    if (!stored) {
-      const { sessionId } = await ensureUserAndSession(lineUserId)
-      sessionStorage.setItem("session_id", sessionId)
-    }
-  })()
-}, [])
+useEffect(() => {
+  if (typeof window === "undefined") return
+  if (sessionStorage.getItem("session_id")) return
 
+  let cancelled = false
+  ;(async () => {
+    try {
+      const { sessionId, lineUserId } = await ensureUserAndSession()
+      if (cancelled) return
+      sessionStorage.setItem("session_id", sessionId)
+      if (lineUserId) sessionStorage.setItem("line_user_id", lineUserId)
+    } catch (e) {
+      console.error("ensureUserAndSession failed:", e)
+    }
+  })();
+
+  return () => { cancelled = true }
+}, []);
   // Scroll to top when the component mounts
   useEffect(() => {
     window.scrollTo(0, 0)

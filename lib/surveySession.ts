@@ -37,30 +37,68 @@ export async function ensureUser(
  * - ถ้ามี session ที่ยังไม่จบ -> คืนอันนั้น
  * - ถ้าไม่มี -> สร้างใหม่
  */
-export async function ensureUserAndSession(
-    lineUserId: string,
-    profile?: Partial<{ display_name: string; picture_url: string; email: string }>
-) {
-    const userId = await ensureUser(lineUserId, profile)
+export type UserProfile = {
+    display_name?: string | null
+    picture_url?: string | null
+    email?: string | null
+}
 
-    const { data: existing, error: serr } = await supabase
+export async function ensureUserAndSession(
+    lineUserId?: string,
+    profile?: UserProfile
+): Promise<{ userId: string; sessionId: string; lineUserId: string }> {
+    // 1) resolve id
+    let id = (lineUserId ?? "").trim()
+
+    if (!id && typeof window !== "undefined") {
+        const fromStorage = (sessionStorage.getItem("line_user_id") ?? "").trim()
+        if (fromStorage) id = fromStorage
+    }
+    if (!id) {
+        const devId = (process.env.NEXT_PUBLIC_DEV_LINE_USER_ID ?? "").trim()
+        if (devId) id = devId
+    }
+    if (!id) throw new Error("missing lineUserId")
+
+    // 2) upsert user profile
+    const { data: user, error: uerr } = await supabase
+        .from("users")
+        .upsert(
+            {
+                line_user_id: id,
+                display_name: profile?.display_name ?? null,
+                picture_url: profile?.picture_url ?? null,
+                email: profile?.email ?? null,
+            },
+            { onConflict: "line_user_id" }
+        )
+        .select("id")
+        .single()
+    if (uerr) throw uerr
+
+    // 3) reuse unfinished session or create a new one
+    const { data: existing, error: qerr } = await supabase
         .from("survey_sessions")
         .select("id, finished_at")
-        .eq("user_id", userId)
+        .eq("user_id", user.id)
         .is("finished_at", null)
         .order("started_at", { ascending: false })
         .limit(1)
         .maybeSingle()
-    if (serr) throw serr
-    if (existing?.id) return { userId, sessionId: existing.id }
+    if (qerr) throw qerr
 
-    const { data: created, error: cerr } = await supabase
+    if (existing?.id) {
+        return { userId: user.id, sessionId: existing.id, lineUserId: id }
+    }
+
+    const { data: created, error: ierr } = await supabase
         .from("survey_sessions")
-        .insert({ user_id: userId })
+        .insert({ user_id: user.id })
         .select("id")
         .single()
-    if (cerr) throw cerr
-    return { userId, sessionId: created.id }
+    if (ierr) throw ierr
+
+    return { userId: user.id, sessionId: created.id, lineUserId: id }
 }
 
 /** ใช้ตอนอยาก "เริ่มรอบใหม่เสมอ" (จะไม่ทับของเดิมแน่นอน) */
