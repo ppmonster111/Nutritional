@@ -59,7 +59,7 @@ export async function ensureUserAndSession(
 
     // upsert ผู้ใช้
     const { data: user, error: uerr } = await supabase
-        .from("users")
+        .from("users")//
         .upsert(
             {
                 line_user_id: id,
@@ -177,8 +177,8 @@ export async function saveSection2Answers(
         current_department,
     }
 
-    payload.bmi = bmi
-    payload.bsa = bsa
+    //payload.bmi = bmi
+    //payload.bsa = bsa
 
     const { error } = await supabase
         .from("survey_section2")
