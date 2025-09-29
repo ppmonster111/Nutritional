@@ -421,7 +421,14 @@ useEffect(() => {
       return
     }
 
-    const sessionId = sessionStorage.getItem("session_id") || ""
+    let sessionId = sessionStorage.getItem("session_id") || ""
+    if (!sessionId) {
+      const { sessionId: sid, lineUserId } = await ensureUserAndSession()
+      sessionId = sid
+      sessionStorage.setItem("session_id", sid)
+      if (lineUserId) sessionStorage.setItem("line_user_id", lineUserId)
+    }
+
     await saveSection2Answers(sessionId, answers)
     window.location.href = "/section3"
 

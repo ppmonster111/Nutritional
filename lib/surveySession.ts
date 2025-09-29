@@ -32,11 +32,7 @@ export async function ensureUser(
     return data.id as string
 }
 
-/**
- * ใช้ตอนอยาก "ทำต่อรอบเดิมถ้ายังไม่จบ"
- * - ถ้ามี session ที่ยังไม่จบ -> คืนอันนั้น
- * - ถ้าไม่มี -> สร้างใหม่
- */
+
 export type UserProfile = {
     display_name?: string | null
     picture_url?: string | null
@@ -44,23 +40,24 @@ export type UserProfile = {
 }
 
 export async function ensureUserAndSession(
-    lineUserId?: string,
+    lineUserId?: string | null,
     profile?: UserProfile
 ): Promise<{ userId: string; sessionId: string; lineUserId: string }> {
-    // 1) resolve id
-    let id = (lineUserId ?? "").trim()
+    let id = (lineUserId ?? "").trim();
 
+    // ถ้า caller ไม่ส่งมา ลองอ่านจาก sessionStorage (เฉพาะ client)
     if (!id && typeof window !== "undefined") {
-        const fromStorage = (sessionStorage.getItem("line_user_id") ?? "").trim()
-        if (fromStorage) id = fromStorage
+        id = (sessionStorage.getItem("line_user_id") ?? "").trim()
     }
-    if (!id) {
-        const devId = (process.env.NEXT_PUBLIC_DEV_LINE_USER_ID ?? "").trim()
-        if (devId) id = devId
-    }
+
     if (!id) throw new Error("missing lineUserId")
 
-    // 2) upsert user profile
+    // sync กลับ sessionStorage เผื่อหน้าอื่นใช้
+    if (typeof window !== "undefined") {
+        sessionStorage.setItem("line_user_id", id)
+    }
+
+    // upsert ผู้ใช้
     const { data: user, error: uerr } = await supabase
         .from("users")
         .upsert(
@@ -76,8 +73,8 @@ export async function ensureUserAndSession(
         .single()
     if (uerr) throw uerr
 
-    // 3) reuse unfinished session or create a new one
-    const { data: existing, error: qerr } = await supabase
+    // reuse session ที่ยังไม่ปิด หรือสร้างใหม่
+    const { data: existing, error: serr } = await supabase
         .from("survey_sessions")
         .select("id, finished_at")
         .eq("user_id", user.id)
@@ -85,23 +82,25 @@ export async function ensureUserAndSession(
         .order("started_at", { ascending: false })
         .limit(1)
         .maybeSingle()
-    if (qerr) throw qerr
+    if (serr) throw serr
 
+    let sessionId: string
     if (existing?.id) {
-        return { userId: user.id, sessionId: existing.id, lineUserId: id }
+        sessionId = existing.id
+    } else {
+        const { data: created, error: cerr } = await supabase
+            .from("survey_sessions")
+            .insert({ user_id: user.id })
+            .select("id")
+            .single()
+        if (cerr) throw cerr
+        sessionId = created.id
     }
 
-    const { data: created, error: ierr } = await supabase
-        .from("survey_sessions")
-        .insert({ user_id: user.id })
-        .select("id")
-        .single()
-    if (ierr) throw ierr
-
-    return { userId: user.id, sessionId: created.id, lineUserId: id }
+    return { userId: user.id, sessionId, lineUserId: id }
 }
 
-/** ใช้ตอนอยาก "เริ่มรอบใหม่เสมอ" (จะไม่ทับของเดิมแน่นอน) */
+// ใช้ตอนอยาก "เริ่มรอบใหม่เสมอ" (ไม่ทับของเดิม)
 export async function createNewSurveySession(
     lineUserId: string,
     profile?: Partial<{ display_name: string; picture_url: string; email: string }>
@@ -116,45 +115,80 @@ export async function createNewSurveySession(
     return data.id as string
 }
 
-/** บันทึก Section 2 + คำนวณและเก็บ BMI/BSA */
+// Section 2
 export async function saveSection2Answers(
     sessionId: string,
     answers: Record<string, string | string[]>
 ) {
     if (!sessionId) throw new Error("missing sessionId")
 
-    const heightCm = Number(answers.height)
-    const weightKg = Number(answers.weight)
+    const toText = (v: string | string[] | undefined) =>
+        Array.isArray(v) ? v.join(", ") : (v ?? "")
 
-    const payload = {
-        session_id: sessionId,
-        age: Number(answers.age),
-        gender: answers.gender as string,
-        year_level: answers.year_level as string,
-        height_cm: heightCm,
-        weight_kg: weightKg,
-        chronic_disease: joinWithOther(
-            answers.underlying_diseases as string[],
-            answers.underlying_diseases_other as string
-        ),
-        regular_medications: joinWithOther(
-            answers.regular_medications as string[],
-            answers.regular_medications_other as string
-        ),
-        surgery_history:
-            answers.surgery_history === "มี"
-                ? (answers.surgery_history_details as string)
-                : "ไม่มี",
-        current_department: answers.current_department as string,
+    // แยกค่าที่จำเป็น
+    const age = Number(answers.age)
+    const gender = (answers.gender as string) || ""
+    const year_level = (answers.year_level as string) || ""
+    const height_cm = Number(answers.height)
+    const weight_kg = Number(answers.weight)
+    const current_department = (answers.current_department as string) || ""
+
+    // checkbox + อื่นๆ
+    const ulist = (answers.underlying_diseases as string[]) || []
+    const underlyingOther = (answers.underlying_diseases_other as string) || ""
+    const underlying_diseases =
+        ulist.includes("อื่นๆ") && underlyingOther
+            ? [...ulist.filter((x) => x !== "อื่นๆ"), `อื่นๆ: ${underlyingOther}`].join(", ")
+            : ulist.join(", ")
+
+    const mlist = (answers.regular_medications as string[]) || []
+    const medsOther = (answers.regular_medications_other as string) || ""
+    const regular_medications =
+        mlist.includes("อื่นๆ") && medsOther
+            ? [...mlist.filter((x) => x !== "อื่นๆ"), `อื่นๆ: ${medsOther}`].join(", ")
+            : mlist.join(", ")
+
+    // ผ่าตัด
+    const surgery_history =
+        answers.surgery_history === "มี"
+            ? ((answers.surgery_history_details as string) || "").trim() || "มี"
+            : "ไม่มี"
+
+    // คำนวณ BMI/BSA ฝั่งเซิร์ฟเวอร์
+    let bmi: number | null = null
+    let bsa: number | null = null
+    if (height_cm > 0 && weight_kg > 0) {
+        const hM = height_cm / 100
+        bmi = Number((weight_kg / (hM * hM)).toFixed(2))
+        bsa = Number((0.007184 * Math.pow(weight_kg, 0.425) * Math.pow(height_cm, 0.725)).toFixed(2))
     }
+
+    // เตรียม payload
+    const payload: any = {
+        session_id: sessionId,
+        age,
+        gender,
+        year_level,
+        height_cm,
+        weight_kg,
+        chronic_disease: underlying_diseases,
+        regular_medications,
+        surgery_history,
+        current_department,
+    }
+
+    payload.bmi = bmi
+    payload.bsa = bsa
 
     const { error } = await supabase
         .from("survey_section2")
         .upsert(payload, { onConflict: "session_id" })
+
     if (error) throw error
 }
 
-/** บันทึก Section 3 */
+
+// Section 3
 export async function saveSection3Answers(
     sessionId: string,
     a: Record<string, string>
