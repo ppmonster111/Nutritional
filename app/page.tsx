@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useRouter } from "next/navigation"
 import { AlertCircle } from "lucide-react"
-
+import { supabaseBrowser } from "@/lib/supabase/browser"
 import liff from "@line/liff"
 import { ensureUserAndSession } from "@/lib/surveySession"
 
@@ -20,65 +20,24 @@ export default function Home() {
 
   // ---------- 1) เตรียม LIFF + ดึง line_user_id ถ้ามีอยู่แล้ว ----------
   useEffect(() => {
-    ;(async () => {
-      try {
-        // 1. init LIFF (ไม่บังคับ login ที่นี่ ปล่อยให้กดปุ่มค่อย login)
-        await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! })
-        setLiffReady(true)
-
-        // 2. ถ้า URL มี ?line_user_id=xxx (สำรองกรณีทดสอบ/ผ่านพารามิเตอร์)
-        const lidFromUrl = new URLSearchParams(window.location.search).get("line_user_id")
-        if (lidFromUrl) {
-          sessionStorage.setItem("line_user_id", lidFromUrl)
-        }
-
-        // 3. ถ้ายังไม่มี line_user_id แต่ผู้ใช้ล็อกอินอยู่แล้ว (กลับมาหลัง login)
-        let lid = sessionStorage.getItem("line_user_id") ?? ""
-        if (!lid && liff.isLoggedIn()) {
-          const p = await liff.getProfile()
-          lid = p.userId
-          sessionStorage.setItem("line_user_id", p.userId)
-          sessionStorage.setItem("display_name", p.displayName ?? "")
-          sessionStorage.setItem("picture_url", p.pictureUrl ?? "")
-        }
-
-        // 4. ถ้าได้ line_user_id แล้ว และยังไม่มี session_id ให้พยายามสร้าง session ไว้เลย (optional)
-        if (lid && !sessionStorage.getItem("session_id")) {
-          const display_name = sessionStorage.getItem("display_name") || undefined
-          const picture_url = sessionStorage.getItem("picture_url") || undefined
-          const { sessionId } = await ensureUserAndSession(lid, { display_name, picture_url })
-          sessionStorage.setItem("session_id", sessionId)
-        }
-      } catch (e: any) {
-        console.error("LIFF init / bootstrap failed:", e)
-        setAuthError(e?.message ?? "LIFF initialize failed")
-      }
-    })()
-  }, [])
-
-  // ---------- 2) เริ่มทำแบบสอบถาม ----------
-  const handleStartSurvey = async () => {
-    if (!isConsentChecked) {
-      setShowConsentWarning(true)
-      return
-    }
-    setShowConsentWarning(false)
-
+  ;(async () => {
     try {
-      // เคลียร์คำตอบเดิมให้เริ่มใหม่ทุกครั้ง
-      sessionStorage.removeItem("surveyAnswers")
-      sessionStorage.removeItem("isSurveyFinished")
+      await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! })
+      setLiffReady(true)
 
-      // เอา line_user_id จาก sessionStorage ก่อน
+      // ✅ ให้แน่ใจว่ามี Supabase session (anonymous) ก่อนแตะ DB
+      const supabase = supabaseBrowser()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        const { error } = await supabase.auth.signInAnonymously()
+        if (error) throw error
+      }
+
+      const lidFromUrl = new URLSearchParams(window.location.search).get("line_user_id")
+      if (lidFromUrl) sessionStorage.setItem("line_user_id", lidFromUrl)
+
       let lid = sessionStorage.getItem("line_user_id") ?? ""
-
-      // ถ้ายังไม่มี และ LIFF พร้อมแล้ว ให้พยายาม login / get profile
-      if (!lid && liffReady) {
-        if (!liff.isLoggedIn()) {
-          // ส่งผู้ใช้ไป login LINE แล้วเด้งกลับมาหน้าเดิม
-          liff.login({ redirectUri: window.location.href })
-          return
-        }
+      if (!lid && liff.isLoggedIn()) {
         const p = await liff.getProfile()
         lid = p.userId
         sessionStorage.setItem("line_user_id", p.userId)
@@ -86,26 +45,73 @@ export default function Home() {
         sessionStorage.setItem("picture_url", p.pictureUrl ?? "")
       }
 
-      // ถ้ายังไม่มีจริง ๆ ให้แจ้งเตือน
-      if (!lid) {
-        alert("ไม่พบ LINE user id กรุณาเข้าสู่ระบบด้วย LINE ก่อนเริ่มทำแบบสอบถาม")
-        return
-      }
-
-      // เปิด/ดึง session ถ้ายังไม่มี
-      if (!sessionStorage.getItem("session_id")) {
+      if (lid && !sessionStorage.getItem("session_id")) {
         const display_name = sessionStorage.getItem("display_name") || undefined
         const picture_url = sessionStorage.getItem("picture_url") || undefined
         const { sessionId } = await ensureUserAndSession(lid, { display_name, picture_url })
         sessionStorage.setItem("session_id", sessionId)
       }
-
-      router.push("/section2")
-    } catch (e) {
-      console.error("start survey failed:", e)
-      alert("เริ่มทำแบบสอบถามไม่สำเร็จ กรุณาลองใหม่")
+    } catch (e: any) {
+      console.error("LIFF init / bootstrap failed:", e)
+      setAuthError(e?.message ?? "LIFF initialize failed")
     }
+  })()
+}, [])
+
+  // ---------- 2) เริ่มทำแบบสอบถาม ----------
+  const handleStartSurvey = async () => {
+  if (!isConsentChecked) { setShowConsentWarning(true); return }
+  setShowConsentWarning(false)
+
+  try {
+    // ✅ ให้แน่ใจว่ามี Supabase session ก่อนแตะ DB
+    const supabase = supabaseBrowser()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      const { error } = await supabase.auth.signInAnonymously()
+      if (error) throw error
+    }
+
+    // เคลียร์คำตอบเดิมให้เริ่มใหม่ทุกครั้ง
+    sessionStorage.removeItem("surveyAnswers")
+    sessionStorage.removeItem("isSurveyFinished")
+
+    // เอา line_user_id จาก sessionStorage ก่อน
+    let lid = sessionStorage.getItem("line_user_id") ?? ""
+
+    // ถ้ายังไม่มี และ LIFF พร้อมแล้ว ให้พยายาม login / get profile
+    if (!lid && liffReady) {
+      if (!liff.isLoggedIn()) {
+        liff.login({ redirectUri: window.location.href })
+        return
+      }
+      const p = await liff.getProfile()
+      lid = p.userId
+      sessionStorage.setItem("line_user_id", p.userId)
+      sessionStorage.setItem("display_name", p.displayName ?? "")
+      sessionStorage.setItem("picture_url", p.pictureUrl ?? "")
+    }
+
+    // ถ้ายังไม่มีจริง ๆ ให้แจ้งเตือน
+    if (!lid) {
+      alert("ไม่พบ LINE user id กรุณาเข้าสู่ระบบด้วย LINE ก่อนเริ่มทำแบบสอบถาม")
+      return
+    }
+
+    // เปิด/ดึง session ถ้ายังไม่มี
+    if (!sessionStorage.getItem("session_id")) {
+      const display_name = sessionStorage.getItem("display_name") || undefined
+      const picture_url = sessionStorage.getItem("picture_url") || undefined
+      const { sessionId } = await ensureUserAndSession(lid, { display_name, picture_url })
+      sessionStorage.setItem("session_id", sessionId)
+    }
+
+    router.push("/section2")
+  } catch (e) {
+    console.error("start survey failed:", e)
+    alert("เริ่มทำแบบสอบถามไม่สำเร็จ กรุณาลองใหม่")
   }
+}
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-100 via-white to-blue-100 px-4 py-10 flex justify-center items-center font-sans">
