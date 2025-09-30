@@ -35,52 +35,58 @@ export type UserProfile = {
     email?: string | null
 }
 
-export async function ensureUserAndSession(lineUserId?: string | null, profile?: { display_name?: string | null; picture_url?: string | null; email?: string | null }) {
-    const supabase = supabaseBrowser()   // ✅ อย่าลืมสร้าง client ที่นี่
+export async function ensureUserAndSession(
+    lineUserId?: string | null,
+    profile?: UserProfile
+): Promise<{ userId: string; sessionId: string; lineUserId: string }> {
+    const supabase = supabaseBrowser()
 
-    let id = (lineUserId ?? "").trim()
-    if (!id && typeof window !== "undefined") {
-        id = (sessionStorage.getItem("line_user_id") ?? "").trim()
+    // ให้แน่ใจว่ามี Supabase auth session (anonymous ก็ได้ถ้าเปิดไว้)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+        const { error } = await supabase.auth.signInAnonymously()
+        if (error) throw error
     }
-    if (!id) throw new Error("missing lineUserId")
 
-    if (typeof window !== "undefined") sessionStorage.setItem("line_user_id", id)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('not authenticated')
 
-    // upsert ผู้ใช้ (ตาราง users ของคุณ)
-    const { data: userRow, error: uerr } = await supabase
-        .from("users")
-        .upsert({
-            line_user_id: id,
-            display_name: profile?.display_name ?? null,
-            picture_url: profile?.picture_url ?? null,
-            email: profile?.email ?? null,
-        }, { onConflict: "line_user_id" })
-        .select("id")
-        .single()
-    if (uerr) throw uerr
+    const lid = (lineUserId ?? sessionStorage.getItem('line_user_id') ?? '').trim()
+    if (lid) sessionStorage.setItem('line_user_id', lid)
 
-    // หา session ที่ยังไม่ปิด หรือสร้างใหม่
+    // upsert โปรไฟล์ลงตาราง profiles (ไม่มี users แล้ว)
+    await supabase.from('profiles').upsert({
+        id: user.id,                 // FK -> auth.users.id
+        line_user_id: lid || null,
+        display_name: profile?.display_name ?? null,
+        picture_url: profile?.picture_url ?? null,
+        email: profile?.email ?? null,
+    }, { onConflict: 'id' }).throwOnError()
+
+    // หา session แบบสอบถามที่ยังไม่ปิด หรือสร้างใหม่
     const { data: existing } = await supabase
-        .from("survey_sessions")
-        .select("id, finished_at")
-        .eq("user_id", userRow.id)
-        .is("finished_at", null)
-        .order("started_at", { ascending: false })
+        .from('survey_sessions')
+        .select('id')
+        .eq('user_id', user.id)
+        .is('finished_at', null)
+        .order('started_at', { ascending: false })
         .limit(1)
         .maybeSingle()
 
-    let sessionId = existing?.id
-    if (!sessionId) {
-        const { data: created, error: cerr } = await supabase
-            .from("survey_sessions")
-            .insert({ user_id: userRow.id })
-            .select("id")
+    let sessionId: string
+    if (existing?.id) {
+        sessionId = existing.id
+    } else {
+        const { data: created } = await supabase
+            .from('survey_sessions')
+            .insert({ user_id: user.id })
+            .select('id')
             .single()
-        if (cerr) throw cerr
-        sessionId = created.id
+            .throwOnError()
+        sessionId = created!.id
     }
 
-    return { userId: userRow.id, sessionId, lineUserId: id }
+    return { userId: user.id, sessionId, lineUserId: lid }
 }
 
 /** หรือถ้าอยากแค่ “ได้ session ที่ยังไม่ปิด” */
