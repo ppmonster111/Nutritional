@@ -143,8 +143,8 @@ export async function saveSection2Answers(
         year_level: answers.year_level as string,
         height_cm,
         weight_kg,
-        bmi, // ต้องมีคอลัมน์ใน DB ด้วย (ดูสคริปต์เพิ่มคอลัมน์ด้านล่าง)
-        bsa, // "
+        //bmi, // ต้องมีคอลัมน์ใน DB ด้วย (ดูสคริปต์เพิ่มคอลัมน์ด้านล่าง)
+        //bsa, // "
         chronic_disease: joinWithOther(
             answers.underlying_diseases as string[] | undefined,
             answers.underlying_diseases_other as string
