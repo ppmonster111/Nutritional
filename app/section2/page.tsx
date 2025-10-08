@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { ArrowLeft, ArrowRight, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { Textarea } from "@/components/ui/textarea" // New import for Textarea component
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -14,37 +14,46 @@ export default function Section2() {
   const [showValidation, setShowValidation] = useState(false)
   const [bmi, setBmi] = useState<string | null>(null)
   const [bsa, setBsa] = useState<string | null>(null)
-  const [isSurveyFinished, setIsSurveyFinished] = useState(false)
+  const [isSurveyFinished, setIsSurveyFinished] = useState(false) // New state for finished flag
 
-  // ทำ 2/3/9 ให้เลือกได้ “ตัวเลือกเดียว” แม้เป็น UI แบบ checkbox
-  const singleSelectCheckboxIds = new Set(["gender", "year", "current_department"])
-
+  // Load answers and finished flag from sessionStorage on component mount
   useEffect(() => {
     const savedAnswers = sessionStorage.getItem("surveyAnswers")
-    if (savedAnswers) setAnswers(JSON.parse(savedAnswers))
+    if (savedAnswers) {
+      setAnswers(JSON.parse(savedAnswers))
+    }
     const finishedFlag = sessionStorage.getItem("isSurveyFinished")
-    if (finishedFlag === "true") setIsSurveyFinished(true)
+    if (finishedFlag === "true") {
+      setIsSurveyFinished(true)
+    }
   }, [])
 
+  // Scroll to top when the component mounts
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
 
+  // Calculate BMI and BSA
   useEffect(() => {
     const heightCm = Number.parseFloat(answers.height as string)
     const weightKg = Number.parseFloat(answers.weight as string)
+
     if (heightCm > 0 && weightKg > 0) {
       const heightM = heightCm / 100
       const calculatedBmi = weightKg / (heightM * heightM)
       setBmi(calculatedBmi.toFixed(2))
+
+      // Du Bois formula for BSA: 0.007184 * W^0.425 * H^0.725
       const calculatedBsa = 0.007184 * Math.pow(weightKg, 0.425) * Math.pow(heightCm, 0.725)
-      setBsa(calculatedBsa.toFixed(2))
+      const bsaValue = calculatedBsa.toFixed(2)
+      setBsa(bsaValue)
     } else {
       setBmi(null)
       setBsa(null)
     }
   }, [answers.height, answers.weight])
 
+  // Function to get BMI color class
   const getBmiColorClass = (bmiValue: number | null) => {
     if (bmiValue === null) return "text-gray-700"
     if (bmiValue < 18.5) return "text-bmi-underweight"
@@ -54,6 +63,8 @@ export default function Section2() {
     if (bmiValue >= 30) return "text-bmi-obese2"
     return "text-gray-700"
   }
+
+  // Function to get BMI status text
   const getBmiStatusText = (bmiValue: number | null) => {
     if (bmiValue === null) return ""
     if (bmiValue < 18.5) return "น้ำหนักน้อย"
@@ -63,6 +74,8 @@ export default function Section2() {
     if (bmiValue >= 30) return "โรคอ้วน ระดับ 2"
     return ""
   }
+
+  // Function to get BSA color class
   const getBsaColorClass = (bsaValue: number | null) => {
     if (bsaValue === null) return "text-gray-700"
     if (bsaValue < 1.4) return "text-bsa-small"
@@ -70,11 +83,21 @@ export default function Section2() {
     if (bsaValue > 1.9) return "text-bsa-large"
     return "text-gray-700"
   }
+
+  // Function to get BSA status text
   const getBsaStatusText = (bsaValue: number | null) => {
-    if (bsaValue === null || isNaN(bsaValue)) return ""
-    if (bsaValue < 1.4) return "ร่างกายเล็ก"
-    if (bsaValue >= 1.4 && bsaValue <= 1.9) return "ร่างกายปกติ"
-    if (bsaValue > 1.9) return "ร่างกายใหญ่"
+    if (bsaValue === null || isNaN(bsaValue)) {
+      return ""
+    }
+    if (bsaValue < 1.4) {
+      return "ร่างกายเล็ก"
+    }
+    if (bsaValue >= 1.4 && bsaValue <= 1.9) {
+      return "ร่างกายปกติ"
+    }
+    if (bsaValue > 1.9) {
+      return "ร่างกายใหญ่"
+    }
     return ""
   }
 
@@ -83,106 +106,103 @@ export default function Section2() {
       questionId: string,
       value: string | string[] | undefined,
       type: "input" | "radio" | "checkbox" | "other_input",
-      questionConfig?: any,
+      questionConfig?: any, // Pass the full question config here for specific logic
     ) => {
-      if (isSurveyFinished) return
-      const newAnswers = { ...answers }
-
-      if (type === "input" && questionConfig?.inputType === "number") {
-        const numValue = Number.parseFloat(value as string)
-        if (questionConfig.max !== undefined && numValue > questionConfig.max) return
-        if (questionConfig.min !== undefined && numValue < questionConfig.min) return
+      // Prevent saving if the survey is already marked as finished
+      if (isSurveyFinished) {
+        return
       }
+
+      const newAnswers = { ...answers }
 
       if (type === "checkbox") {
         let currentValues = (newAnswers[questionId] || []) as string[]
-        const clicked = value as string
-        const isSingle = singleSelectCheckboxIds.has(questionId)
+        const isNoneOption = value === "ไม่มี"
+        const isOtherOption = value === "อื่นๆ"
 
-        if (isSingle) {
-          // toggle แบบ single-select (เหมือน radio)
-          if (currentValues.length === 1 && currentValues[0] === clicked) {
+        if (isNoneOption) {
+          if (currentValues.includes("ไม่มี")) {
+            // "ไม่มี" is currently selected, and user is clicking it again (to deselect)
             currentValues = []
           } else {
-            currentValues = [clicked]
+            // "ไม่มี" is not selected, and user is selecting it
+            currentValues = ["ไม่มี"]
           }
-          newAnswers[questionId] = currentValues
+          // Always clear associated 'other' input if "ไม่มี" is involved
+          if (questionConfig?.hasOther && newAnswers[questionConfig.otherInputId!]) {
+            delete newAnswers[questionConfig.otherInputId!]
+          }
         } else {
-          const isNoneOption = clicked === "ไม่มี"
-          const isOtherOption = clicked === "อื่นๆ"
+          // Clicked option is NOT "ไม่มี"
+          // If "ไม่มี" was selected, deselect it first
+          if (currentValues.includes("ไม่มี")) {
+            currentValues = currentValues.filter((item) => item !== "ไม่มี")
+          }
 
-          if (isNoneOption) {
-            if (currentValues.includes("ไม่มี")) currentValues = []
-            else currentValues = ["ไม่มี"]
-            if (questionConfig?.hasOther && newAnswers[questionConfig.otherInputId!]) {
+          if (currentValues.includes(value as string)) {
+            // Deselect the clicked option
+            currentValues = currentValues.filter((item) => item !== value)
+            // If "อื่นๆ" is deselected, clear its input
+            if (isOtherOption && questionConfig?.hasOther && newAnswers[questionConfig.otherInputId!]) {
               delete newAnswers[questionConfig.otherInputId!]
             }
-            if (questionId === "surgery_history" && newAnswers["surgery_history_details"]) {
-              delete newAnswers["surgery_history_details"]
-            }
           } else {
-            if (currentValues.includes("ไม่มี")) {
-              currentValues = currentValues.filter((item) => item !== "ไม่มี")
-            }
-            if (currentValues.includes(clicked)) {
-              currentValues = currentValues.filter((item) => item !== clicked)
-              if (isOtherOption && questionConfig?.hasOther && newAnswers[questionConfig.otherInputId!]) {
-                delete newAnswers[questionConfig.otherInputId!]
-              }
-              if (questionId === "surgery_history" && clicked === "มี" && newAnswers["surgery_history_details"]) {
-                delete newAnswers["surgery_history_details"]
-              }
-            } else {
-              currentValues = [...currentValues, clicked]
-            }
+            // Select the clicked option
+            currentValues = [...currentValues, value as string]
           }
-          newAnswers[questionId] = currentValues
         }
+        newAnswers[questionId] = currentValues
       } else if (type === "radio") {
         if (value === undefined) {
+          // Deselect current option
           delete newAnswers[questionId]
-          if (questionId === "surgery_history") delete newAnswers["surgery_history_details"]
+          // Clear associated input for surgery_history
+          if (questionId === "surgery_history") {
+            delete newAnswers["surgery_history_details"]
+          }
         } else {
+          // Select new option
           newAnswers[questionId] = value as string
-          if (questionId === "surgery_history" && value !== "มี") delete newAnswers["surgery_history_details"]
+          // Clear associated input if not selecting 'มี' for surgery_history
+          if (questionId === "surgery_history" && value !== "มี") {
+            delete newAnswers["surgery_history_details"]
+          }
         }
       } else if (type === "input" || type === "other_input") {
         newAnswers[questionId] = value as string
       }
 
       setAnswers(newAnswers)
+      // Only save to sessionStorage when navigating or finishing, not on every change
       sessionStorage.setItem("surveyAnswers", JSON.stringify(newAnswers))
-      if (showValidation) setShowValidation(false)
+
+      if (showValidation) {
+        setShowValidation(false)
+      }
     },
     [answers, isSurveyFinished, showValidation],
   )
 
   const generalQuestions = [
-    { id: "age", label: "อายุ (ปี)", type: "input", inputType: "number", required: true, min: 1, max: 100 },
-
-    // 2) เพศ — checkbox single-select
+    { id: "age", label: "อายุ (ปี)", type: "input", inputType: "number", required: true },
     {
       id: "gender",
       label: "เพศ",
-      type: "checkbox",
+      type: "radio",
       options: ["ชาย", "หญิง"],
       required: true,
-      layout: "grid grid-cols-2 gap-2",
+      layout: "flex flex-wrap gap-x-4 gap-y-2",
     },
-
-    // 3) ชั้นปี — checkbox single-select
     {
       id: "year",
       label: "ชั้นปี",
-      type: "checkbox",
+      type: "radio",
       options: ["ชั้นปีที่ 4", "ชั้นปีที่ 5", "ชั้นปีที่ 6"],
       required: true,
-      layout: "grid grid-cols-3 gap-2",
+      layout: "flex flex-wrap gap-x-4 gap-y-2",
     },
-
-    { id: "height", label: "ส่วนสูง (ซม.)", type: "input", inputType: "number", required: true, min: 1, max: 250 },
-    { id: "weight", label: "น้ำหนัก (กก.)", type: "input", inputType: "number", required: true, min: 1, max: 250 },
-
+    { id: "height", label: "ส่วนสูง (ซม.)", type: "input", inputType: "number", required: true },
+    { id: "weight", label: "น้ำหนัก (กก.)", type: "input", inputType: "number", required: true },
     {
       id: "underlying_diseases",
       label: "โรคประจำตัว",
@@ -204,7 +224,6 @@ export default function Section2() {
       required: true,
       layout: "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2",
     },
-
     {
       id: "regular_medications",
       label: "ยาที่ใช้เป็นประจำ",
@@ -222,23 +241,20 @@ export default function Section2() {
       required: true,
       layout: "grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2",
     },
-
-    // 8) ผ่าตัด — multi-select ("มี"/"ไม่มี") + รายละเอียดเมื่อเลือก "มี"
     {
       id: "surgery_history",
       label: "ประวัติการผ่าตัด",
-      type: "checkbox",
+      type: "radio",
       options: ["มี", "ไม่มี"],
+      hasOtherInput: true, // New property for radio with conditional input
       otherInputId: "surgery_history_details",
       required: true,
-      layout: "grid grid-cols-2 gap-2",
+      layout: "flex flex-wrap gap-x-4 gap-y-2",
     },
-
-    // 9) แผนก/วอร์ด — checkbox single-select
     {
       id: "current_department",
       label: "ขณะนี้กำลังศึกษาอยู่แผนก/วอร์ดใด?",
-      type: "checkbox",
+      type: "radio",
       options: [
         "Med",
         "Surgery",
@@ -257,7 +273,7 @@ export default function Section2() {
         "Forensics",
       ],
       required: true,
-      layout: "grid grid-cols-2 sm:grid-cols-3 gap-2",
+      layout: "grid grid-cols-2 sm:grid-cols-3 gap-2", // Grid layout for many options
     },
   ]
 
@@ -265,25 +281,28 @@ export default function Section2() {
     let count = 0
     generalQuestions.forEach((q) => {
       if (q.type === "input") {
-        if (answers[q.id] && (answers[q.id] as string).trim() !== "") count++
+        if (answers[q.id] && (answers[q.id] as string).trim() !== "") {
+          count++
+        }
       } else if (q.type === "radio") {
         if (answers[q.id]) {
           count++
           if (q.hasOtherInput && answers[q.id] === "มี") {
             if (answers[q.otherInputId!] && (answers[q.otherInputId!] as string).trim() !== "") {
-              // ok
-            } else count--
+              // Counted if main radio is answered and other input is filled
+            } else {
+              // If 'มี' is selected but other input is empty, don't count as answered
+              count--
+            }
           }
         }
       } else if (q.type === "checkbox") {
         const selectedOptions = answers[q.id] as string[]
         if (selectedOptions && selectedOptions.length > 0) {
-          if (q.id === "surgery_history" && selectedOptions.includes("มี")) {
-            if (answers["surgery_history_details"] && (answers["surgery_history_details"] as string).trim() !== "") {
+          if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
+            if (answers[q.otherInputId!] && (answers[q.otherInputId!] as string).trim() !== "") {
               count++
             }
-          } else if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
-            if (answers[q.otherInputId!] && (answers[q.otherInputId!] as string).trim() !== "") count++
           } else {
             count++
           }
@@ -293,27 +312,36 @@ export default function Section2() {
     return count
   }
 
-  const getTotalQuestions = () => generalQuestions.length
+  const getTotalQuestions = () => {
+    return generalQuestions.length
+  }
 
   const isAllAnswered = () => {
     for (const q of generalQuestions) {
-      if (!q.required) continue
-      if (q.type === "input") {
-        if (!answers[q.id] || (answers[q.id] as string).trim() === "") return false
-      } else if (q.type === "radio") {
-        if (!answers[q.id]) return false
-        if (q.hasOtherInput && answers[q.id] === "มี") {
-          if (!answers[q.otherInputId!] || (answers[q.otherInputId!] as string).trim() === "") return false
-        }
-      } else if (q.type === "checkbox") {
-        const selectedOptions = answers[q.id] as string[]
-        if (!selectedOptions || selectedOptions.length === 0) return false
-        if (q.id === "surgery_history" && selectedOptions.includes("มี")) {
-          if (!answers["surgery_history_details"] || (answers["surgery_history_details"] as string).trim() === "")
+      if (q.required) {
+        if (q.type === "input") {
+          if (!answers[q.id] || (answers[q.id] as string).trim() === "") {
             return false
-        }
-        if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
-          if (!answers[q.otherInputId!] || (answers[q.otherInputId!] as string).trim() === "") return false
+          }
+        } else if (q.type === "radio") {
+          if (!answers[q.id]) {
+            return false
+          }
+          if (q.hasOtherInput && answers[q.id] === "มี") {
+            if (!answers[q.otherInputId!] || (answers[q.otherInputId!] as string).trim() === "") {
+              return false
+            }
+          }
+        } else if (q.type === "checkbox") {
+          const selectedOptions = answers[q.id] as string[]
+          if (!selectedOptions || selectedOptions.length === 0) {
+            return false
+          }
+          if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
+            if (!answers[q.otherInputId!] || (answers[q.otherInputId!] as string).trim() === "") {
+              return false
+            }
+          }
         }
       }
     }
@@ -324,27 +352,27 @@ export default function Section2() {
     if (!isAllAnswered()) {
       setShowValidation(true)
 
-      let firstUnansweredElement: HTMLElement | null = null
+      let firstUnansweredElement = null
       for (const q of generalQuestions) {
         const questionId = q.id
         let isQuestionAnswered = true
 
         if (q.type === "input") {
-          if (!answers[questionId] || (answers[questionId] as string).trim() === "") isQuestionAnswered = false
+          if (!answers[questionId] || (answers[questionId] as string).trim() === "") {
+            isQuestionAnswered = false
+          }
         } else if (q.type === "radio") {
-          if (!answers[questionId]) isQuestionAnswered = false
-          else if (q.hasOtherInput && answers[questionId] === "มี") {
+          if (!answers[questionId]) {
+            isQuestionAnswered = false
+          } else if (q.hasOtherInput && answers[questionId] === "มี") {
             if (!answers[q.otherInputId!] || (answers[q.otherInputId!] as string).trim() === "") {
               isQuestionAnswered = false
             }
           }
         } else if (q.type === "checkbox") {
           const selectedOptions = answers[q.id] as string[]
-          if (!selectedOptions || selectedOptions.length === 0) isQuestionAnswered = false
-          else if (q.id === "surgery_history" && selectedOptions.includes("มี")) {
-            if (!answers["surgery_history_details"] || (answers["surgery_history_details"] as string).trim() === "") {
-              isQuestionAnswered = false
-            }
+          if (!selectedOptions || selectedOptions.length === 0) {
+            isQuestionAnswered = false
           } else if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
             if (!answers[q.otherInputId!] || (answers[q.otherInputId!] as string).trim() === "") {
               isQuestionAnswered = false
@@ -359,7 +387,10 @@ export default function Section2() {
       }
 
       if (firstUnansweredElement) {
-        firstUnansweredElement.scrollIntoView({ behavior: "smooth", block: "center" })
+        firstUnansweredElement.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        })
       } else {
         window.scrollTo({ top: 0, behavior: "smooth" })
       }
@@ -379,211 +410,214 @@ export default function Section2() {
             </h1>
           </div>
 
-        {/* Progress indicator */}
-        <div className="px-3 sm:px-4 md:px-5 lg:px-6 pb-3">
-          <div className="flex justify-between items-center text-xs sm:text-sm text-gray-600">
-            <span>ความคืบหน้า: {getAnsweredQuestions()}/{getTotalQuestions()}</span>
-            <span>{Math.round((getAnsweredQuestions() / getTotalQuestions()) * 100)}%</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-            <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(getAnsweredQuestions() / getTotalQuestions()) * 100}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Validation message */}
-        {showValidation && (
-          <div className="mx-3 sm:mx-4 md:mx-5 lg:mx-6 mb-3 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-medium text-red-800">กรุณาตอบคำถามให้ครบทุกข้อ</h3>
-                <p className="text-xs text-red-700 mt-1">
-                  คุณยังไม่ได้ตอบคำถาม {getTotalQuestions() - getAnsweredQuestions()} ข้อ
-                </p>
-              </div>
+          {/* Progress indicator */}
+          <div className="px-3 sm:px-4 md:px-5 lg:px-6 pb-3">
+            <div className="flex justify-between items-center text-xs sm:text-sm text-gray-600">
+              <span>
+                ความคืบหน้า: {getAnsweredQuestions()}/{getTotalQuestions()}
+              </span>
+              <span>{Math.round((getAnsweredQuestions() / getTotalQuestions()) * 100)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+              <div
+                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${(getAnsweredQuestions() / getTotalQuestions()) * 100}%` }}
+              ></div>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* Content */}
-      <div className="flex-grow p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-2 sm:space-y-3 md:space-y-4">
-        {generalQuestions.map((q, index) => {
-          const isQuestionAnswered = (() => {
-            if (q.type === "input") {
-              return answers[q.id] && (answers[q.id] as string).trim() !== ""
-            } else if (q.type === "radio") {
-              if (!answers[q.id]) return false
-              if (q.hasOtherInput && answers[q.id] === "มี") {
-                return answers[q.otherInputId!] && (answers[q.otherInputId!] as string).trim() !== ""
-              }
-              return true
-            } else if (q.type === "checkbox") {
-              const selectedOptions = answers[q.id] as string[]
-              if (!selectedOptions || selectedOptions.length === 0) return false
-              if (q.id === "surgery_history" && selectedOptions.includes("มี")) {
-                return !!(answers["surgery_history_details"] && (answers["surgery_history_details"] as string).trim() !== "")
-              }
-              if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
-                return answers[q.otherInputId!] && (answers[q.otherInputId!] as string).trim() !== ""
-              }
-              return true
-            }
-            return false
-          })()
-          const isHighlighted = showValidation && !isQuestionAnswered
-
-          return (
-            <div
-              key={q.id}
-              id={q.id}
-              className={`space-y-2 sm:space-y-3 p-3 sm:p-4 md:p-5 rounded-lg transition-all duration-200 shadow-sm ${
-                isHighlighted ? "bg-red-50 border-2 border-red-200" : "bg-gray-50"
-              }`}
-            >
-              <div className="flex items-start justify-between">
-                <h3 className="text-xs sm:text-sm md:text-base lg:text-lg font-medium text-gray-900 leading-relaxed">
-                  {index + 1}. {q.label}
-                  {q.required && !isQuestionAnswered && <span className="text-red-500 ml-1">*</span>}
-                </h3>
-                {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 ml-2" />}
+          {/* Validation message */}
+          {showValidation && (
+            <div className="mx-3 sm:mx-4 md:mx-5 lg:mx-6 mb-3 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-medium text-red-800">กรุณาตอบคำถามให้ครบทุกข้อ</h3>
+                  <p className="text-xs text-red-700 mt-1">
+                    คุณยังไม่ได้ตอบคำถาม {getTotalQuestions() - getAnsweredQuestions()} ข้อ
+                  </p>
+                </div>
               </div>
+            </div>
+          )}
+        </div>
 
-              {q.type === "input" && (
-                <Input
-                  id={q.id}
-                  type={q.inputType}
-                  value={(answers[q.id] as string) || ""}
-                  onChange={(e) => handleAnswerChange(q.id, e.target.value, "input", q)}
-                  min={q.min}
-                  max={q.max}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              )}
+        {/* Content */}
+        <div className="flex-grow p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-2 sm:space-y-3 md:space-y-4">
+          {" "}
+          {/* Adjusted space-y */}
+          {generalQuestions.map((q, index) => {
+            const isQuestionAnswered = (() => {
+              if (q.type === "input") {
+                return answers[q.id] && (answers[q.id] as string).trim() !== ""
+              } else if (q.type === "radio") {
+                if (!answers[q.id]) return false
+                if (q.hasOtherInput && answers[q.id] === "มี") {
+                  return answers[q.otherInputId!] && (answers[q.otherInputId!] as string).trim() !== ""
+                }
+                return true
+              } else if (q.type === "checkbox") {
+                const selectedOptions = answers[q.id] as string[]
+                if (!selectedOptions || selectedOptions.length === 0) return false
+                if (q.hasOther && selectedOptions.includes("อื่นๆ")) {
+                  return answers[q.otherInputId!] && (answers[q.otherInputId!] as string).trim() !== ""
+                }
+                return true
+              }
+              return false
+            })()
+            const isHighlighted = showValidation && !isQuestionAnswered
 
-              {q.type === "radio" && (
-                <RadioGroup className={q.layout || "space-y-2"}>
-                  {q.options?.map((option) => (
-                    <div
-                      key={option}
-                      onClick={() => {
-                        if (answers[q.id] === option) handleAnswerChange(q.id, undefined, "radio")
-                        else handleAnswerChange(q.id, option, "radio")
-                      }}
-                      className={`flex items-start sm:items-center p-2 sm:p-2.5 md:p-3 border rounded-md sm:rounded-lg cursor-pointer transition-all duration-200 ${
-                        answers[q.id] === option
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
-                      }`}
-                    >
-                      <RadioGroupItem
-                        value={option}
-                        id={`${q.id}-${option}`}
-                        checked={answers[q.id] === option}
-                        className="mt-0.5 sm:mt-0"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (answers[q.id] === option) handleAnswerChange(q.id, undefined, "radio")
-                          else handleAnswerChange(q.id, option, "radio")
-                        }}
-                      />
-                      <Label htmlFor={`${q.id}-${option}`} className="ml-2 text-sm sm:text-base cursor-pointer flex-1">
-                        {option}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              )}
+            return (
+              <div
+                key={q.id}
+                id={q.id}
+                className={`space-y-2 sm:space-y-3 p-3 sm:p-4 md:p-5 rounded-lg transition-all duration-200 shadow-sm ${
+                  isHighlighted ? "bg-red-50 border-2 border-red-200" : "bg-gray-50"
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <h3 className="text-xs sm:text-sm md:text-base lg:text-lg font-medium text-gray-900 leading-relaxed">
+                    {index + 1}. {q.label}
+                    {q.required && <span className="text-red-500 ml-1">*</span>}
+                  </h3>
+                  {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 ml-2" />}
+                </div>
 
-              {q.type === "checkbox" && (
-                <div className={q.layout || "space-y-2"}>
-                  {q.options?.map((option) => {
-                    const isNoneOption = option === "ไม่มี"
-                    const isNoneSelected = (answers[q.id] as string[] | undefined)?.includes("ไม่มี")
-                    const isDisabled = isNoneSelected && !isNoneOption && !singleSelectCheckboxIds.has(q.id)
-                    return (
+                {q.type === "input" && (
+                  <Input
+                    id={q.id}
+                    type={q.inputType}
+                    value={(answers[q.id] as string) || ""}
+                    onChange={(e) => handleAnswerChange(q.id, e.target.value, "input")}
+                    className="mt-1 block w-20 sm:w-24 md:w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                )}
+
+                {q.type === "radio" && (
+                  <RadioGroup className={q.layout || "space-y-2"}>
+                    {q.options?.map((option) => (
                       <div
                         key={option}
                         onClick={() => {
-                          if (!isDisabled) handleAnswerChange(q.id, option, "checkbox", q)
+                          if (answers[q.id] === option) {
+                            // If clicking the same option, deselect it
+                            handleAnswerChange(q.id, undefined, "radio")
+                          } else {
+                            // If clicking a different option, select it
+                            handleAnswerChange(q.id, option, "radio")
+                          }
                         }}
-                        className={`flex items-center space-x-1.5 p-2 sm:p-2.5 md:p-3 border rounded-md sm:rounded-lg bg-white hover:bg-gray-50 hover:border-blue-300 hover:shadow-sm cursor-pointer ${
-                          isDisabled ? "opacity-50 cursor-not-allowed" : ""
+                        className={`flex items-start sm:items-center p-2 sm:p-2.5 md:p-3 border rounded-md sm:rounded-lg cursor-pointer transition-all duration-200 ${
+                          answers[q.id] === option
+                            ? "border-blue-500 bg-blue-50 text-blue-700"
+                            : "border-gray-300 hover:border-gray-400 hover:bg-gray-50"
                         }`}
                       >
-                        <Checkbox
+                        <RadioGroupItem
+                          value={option}
                           id={`${q.id}-${option}`}
-                          checked={(answers[q.id] as string[] | undefined)?.includes(option)}
-                          disabled={isDisabled}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (!isDisabled) handleAnswerChange(q.id, option, "checkbox", q)
-                          }}
+                          checked={answers[q.id] === option}
+                          className="mt-0.5 sm:mt-0"
+                          readOnly
                         />
                         <Label
                           htmlFor={`${q.id}-${option}`}
-                          className={`text-xs sm:text-sm md:text-sm cursor-pointer ${
-                            isDisabled ? "cursor-not-allowed" : ""
-                          }`}
+                          className="ml-2 text-sm sm:text-base cursor-pointer flex-1"
                         >
                           {option}
                         </Label>
                       </div>
-                    )
-                  })}
-                  {q.hasOther && (
-                    <div
-                      onClick={() => {
-                        const isNoneSelected = (answers[q.id] as string[] | undefined)?.includes("ไม่มี")
-                        if (!isNoneSelected) handleAnswerChange(q.id, "อื่นๆ", "checkbox", q)
-                      }}
-                      className={`flex items-center space-x-1.5 p-2 sm:p-2.5 md:p-3 border rounded-md sm:rounded-lg bg-white hover:bg-gray-50 hover:border-blue-300 hover:shadow-sm cursor-pointer ${
-                        (answers[q.id] as string[] | undefined)?.includes("ไม่มี") ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      <Checkbox
-                        id={`${q.id}-อื่นๆ`}
-                        checked={(answers[q.id] as string[] | undefined)?.includes("อื่นๆ")}
-                        disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")}
-                        onClick={(e) => {
-                          e.stopPropagation()
+                    ))}
+                  </RadioGroup>
+                )}
+
+                {q.type === "checkbox" && (
+                  <div className={q.layout || "space-y-2"}>
+                    {q.options?.map((option) => {
+                      const isNoneOption = option === "ไม่มี"
+                      const isNoneSelected = (answers[q.id] as string[] | undefined)?.includes("ไม่มี")
+                      const isDisabled = isNoneSelected && !isNoneOption // Disable if "ไม่มี" is selected and this is not "ไม่มี"
+
+                      return (
+                        <div
+                          key={option}
+                          onClick={() => {
+                            if (!isDisabled) {
+                              handleAnswerChange(q.id, option, "checkbox", q) // Pass q here
+                            }
+                          }}
+                          className={`flex items-center space-x-1.5 p-2 sm:p-2.5 md:p-3 border rounded-md sm:rounded-lg bg-white hover:bg-gray-50 hover:border-blue-300 hover:shadow-sm cursor-pointer ${
+                            isDisabled ? "opacity-50 cursor-not-allowed" : ""
+                          }`}
+                        >
+                          <Checkbox
+                            id={`${q.id}-${option}`}
+                            checked={(answers[q.id] as string[] | undefined)?.includes(option)}
+                            readOnly // Make checkbox read-only as parent div controls state
+                            disabled={isDisabled} // Disable the actual checkbox input
+                          />
+                          <Label
+                            htmlFor={`${q.id}-${option}`}
+                            className={`text-xs sm:text-sm md:text-sm cursor-pointer ${
+                              isDisabled ? "cursor-not-allowed" : ""
+                            }`}
+                          >
+                            {option}
+                          </Label>
+                        </div>
+                      )
+                    })}
+                    {q.hasOther && (
+                      <div
+                        onClick={() => {
                           const isNoneSelected = (answers[q.id] as string[] | undefined)?.includes("ไม่มี")
-                          if (!isNoneSelected) handleAnswerChange(q.id, "อื่นๆ", "checkbox", q)
+                          if (!isNoneSelected) {
+                            handleAnswerChange(q.id, "อื่นๆ", "checkbox", q) // Pass q here
+                          }
                         }}
-                      />
-                      <Label
-                        htmlFor={`${q.id}-อื่นๆ`}
-                        className={`text-xs sm:text-sm md:text-sm cursor-pointer ${
-                          (answers[q.id] as string[] | undefined)?.includes("ไม่มี") ? "cursor-not-allowed" : ""
+                        className={`flex items-center space-x-1.5 p-2 sm:p-2.5 md:p-3 border rounded-md sm:rounded-lg bg-white hover:bg-gray-50 hover:border-blue-300 hover:shadow-sm cursor-pointer ${
+                          (answers[q.id] as string[] | undefined)?.includes("ไม่มี")
+                            ? "opacity-50 cursor-not-allowed"
+                            : ""
                         }`}
                       >
-                        อื่นๆ
-                      </Label>
-                      {(answers[q.id] as string[] | undefined)?.includes("อื่นๆ") && (
-                        <Textarea
-                          value={(answers[q.otherInputId!] as string) || ""}
-                          onChange={(e) => handleAnswerChange(q.otherInputId!, e.target.value, "other_input", q)}
-                          onClick={(e) => e.stopPropagation()}
-                          placeholder="ระบุ"
-                          className="ml-1.5 flex-grow px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 min-h-[60px] resize-y"
-                          disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")}
+                        <Checkbox
+                          id={`${q.id}-อื่นๆ`}
+                          checked={(answers[q.id] as string[] | undefined)?.includes("อื่นๆ")}
+                          readOnly // Make checkbox read-only
+                          disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")} // Disable if "ไม่มี" is selected
                         />
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+                        <Label
+                          htmlFor={`${q.id}-อื่นๆ`}
+                          className={`text-xs sm:text-sm md:text-sm cursor-pointer ${
+                            (answers[q.id] as string[] | undefined)?.includes("ไม่มี") ? "cursor-not-allowed" : ""
+                          }`}
+                        >
+                          อื่นๆ
+                        </Label>
+                        {(answers[q.id] as string[] | undefined)?.includes("อื่นๆ") && (
+                          // Prevent click on input from toggling checkbox
+                          <Textarea
+                            value={(answers[q.otherInputId!] as string) || ""}
+                            onChange={(e) => handleAnswerChange(q.otherInputId!, e.target.value, "other_input", q)} // Pass q here
+                            onClick={(e) => e.stopPropagation()} // Stop propagation for input clicks
+                            placeholder="ระบุ"
+                            className="ml-1.5 flex-grow px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 min-h-[60px] resize-y"
+                            disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")} // Disable input if "ไม่มี" is selected
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              {/* รายละเอียดผ่าตัด */}
-              {q.id === "surgery_history" &&
-                (answers.surgery_history as string[] | undefined)?.includes("มี") && (
+                {/* Conditional input for Surgery History details */}
+                {q.id === "surgery_history" && answers.surgery_history === "มี" && (
                   <div className="mt-4">
                     <Label htmlFor={q.otherInputId!} className="text-sm md:text-base font-medium">
                       โปรดระบุรายละเอียดการผ่าตัด:
-                      {q.required && !isQuestionAnswered && <span className="text-red-500 ml-1">*</span>}
+                      {q.required && <span className="text-red-500 ml-1">*</span>}
                     </Label>
                     <Textarea
                       id={q.otherInputId!}
@@ -595,52 +629,56 @@ export default function Section2() {
                   </div>
                 )}
 
-              {q.id === "weight" && bmi && (
-                <p className="text-sm md:text-base text-gray-700 mt-2">
-                  BMI:{" "}
-                  <span className={`font-semibold ${getBmiColorClass(Number.parseFloat(bmi))}`}>
-                    {bmi} ({getBmiStatusText(Number.parseFloat(bmi))})
-                  </span>
-                </p>
-              )}
-              {q.id === "weight" && bsa && (
-                <p className="text-sm md:text-base text-gray-700">
-                  BSA:{" "}
-                  <span className={`font-semibold ${getBsaColorClass(Number.parseFloat(bsa))}`}>
-                    {bsa}
-                    {getBsaStatusText(Number.parseFloat(bsa)) && <span> ({getBsaStatusText(Number.parseFloat(bsa))})</span>}
-                  </span>
-                </p>
-              )}
-            </div>
-          )
-        })}
-      </div>
+                {q.id === "weight" && bmi && (
+                  <p className="text-sm md:text-base text-gray-700 mt-2">
+                    BMI:{" "}
+                    <span className={`font-semibold ${getBmiColorClass(Number.parseFloat(bmi))}`}>
+                      {bmi} ({getBmiStatusText(Number.parseFloat(bmi))})
+                    </span>
+                  </p>
+                )}
+                {q.id === "weight" && bsa && (
+                  <p className="text-sm md:text-base text-gray-700">
+                    BSA:{" "}
+                    <span className={`font-semibold ${getBsaColorClass(Number.parseFloat(bsa))}`}>
+                      {bsa}
+                      {getBsaStatusText(Number.parseFloat(bsa)) && (
+                        <span> ({getBsaStatusText(Number.parseFloat(bsa))})</span>
+                      )}
+                    </span>
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </div>
 
-      {/* Navigation Buttons */}
-      <div className="bg-white border-t shadow-sm w-full mx-auto p-4 sm:p-5 md:p-6 lg:p-8">
-        <div className="flex justify-between items-center">
-          <Link
-            href="/"
-            className="flex items-center px-5 sm:px-6 md:px-7 lg:px-9 py-3 sm:py-3.5 md:py-4 lg:py-5 bg-gray-200 text-gray-700 rounded-md sm:rounded-lg hover:bg-gray-300 transition-colors text-sm sm:text-base md:text-lg lg:text-xl font-medium shadow-lg hover:shadow-xl !border-none"
-          >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 mr-2 sm:mr-2.5" />
-            <span>กลับ</span>
-          </Link>
-          <div className="flex gap-4">
-            <button
-              onClick={handleNext}
-              className={`flex items-center px-5 sm:px-6 md:px-7 lg:px-9 py-3 sm:py-3.5 md:py-4 lg:py-5 rounded-md sm:rounded-lg transition-colors text-sm sm:text-base md:text-lg lg:text-xl font-medium shadow-lg hover:shadow-xl !border-none ${
-                isAllAnswered() ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              }`}
+        {/* Navigation Buttons */}
+        <div className="bg-white border-t shadow-sm w-full mx-auto p-4 sm:p-5 md:p-6 lg:p-8">
+          <div className="flex justify-between items-center">
+            <Link
+              href="/"
+              className="flex items-center px-5 sm:px-6 md:px-7 lg:px-9 py-3 sm:py-3.5 md:py-4 lg:py-5 bg-gray-200 text-gray-700 rounded-md sm:rounded-lg hover:bg-gray-300 transition-colors text-sm sm:text-base md:text-lg lg:text-xl font-medium shadow-lg hover:shadow-xl !border-none"
             >
-              <span>ถัดไป</span>
-              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 ml-2 sm:ml-2.5" />
-            </button>
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 mr-2 sm:mr-2.5" />
+              <span>กลับ</span>
+            </Link>
+            <div className="flex gap-4">
+              <button
+                onClick={handleNext}
+                className={`flex items-center px-5 sm:px-6 md:px-7 lg:px-9 py-3 sm:py-3.5 md:py-4 lg:py-5 rounded-md sm:rounded-lg transition-colors text-sm sm:text-base md:text-lg lg:text-xl font-medium shadow-lg hover:shadow-xl !border-none ${
+                  isAllAnswered()
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                <span>ถัดไป</span>
+                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 ml-2 sm:ml-2.5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
   )
 }
