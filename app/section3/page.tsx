@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { ArrowRight, AlertCircle, ArrowLeft } from "lucide-react"
 import Link from "next/link"
-
 import { saveSection3Answers } from "@/lib/surveySession"
 
 export default function Section3() {
@@ -14,19 +13,13 @@ export default function Section3() {
   const [fatScore, setFatScore] = useState(0)
   const [sodiumScore, setSodiumScore] = useState(0)
 
-  // Load answers and finished flag from sessionStorage on component mount
   useEffect(() => {
     const savedAnswers = sessionStorage.getItem("surveyAnswers")
-    if (savedAnswers) {
-      setAnswers(JSON.parse(savedAnswers))
-    }
+    if (savedAnswers) setAnswers(JSON.parse(savedAnswers))
     const finishedFlag = sessionStorage.getItem("isSurveyFinished")
-    if (finishedFlag === "true") {
-      setIsSurveyFinished(true)
-    }
+    if (finishedFlag === "true") setIsSurveyFinished(true)
   }, [])
 
-  // Scroll to top when the component mounts
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
@@ -38,29 +31,13 @@ export default function Section3() {
   }, [answers])
 
   const handleAnswerChange = (questionId: string, value: string) => {
-    // Prevent saving if the survey is already marked as finished
-    if (isSurveyFinished) {
-      return
-    }
-
-    const newAnswers = { ...answers }
-
-    // If the same option is clicked again, remove it (deselect)
-    if (answers[questionId] === value) {
-      delete newAnswers[questionId]
-    } else {
-      // Otherwise, set the new value
-      newAnswers[questionId] = value
-    }
-
-    setAnswers(newAnswers)
-    // Only save to sessionStorage when navigating or finishing, not on every change
-    sessionStorage.setItem("surveyAnswers", JSON.stringify(newAnswers))
-
-    // Hide validation message when user starts answering
-    if (showValidation) {
-      setShowValidation(false)
-    }
+    if (isSurveyFinished) return
+    const next = { ...answers }
+    if (answers[questionId] === value) delete next[questionId]
+    else next[questionId] = value
+    setAnswers(next)
+    sessionStorage.setItem("surveyAnswers", JSON.stringify(next))
+    if (showValidation) setShowValidation(false)
   }
 
   const sections = [
@@ -100,15 +77,12 @@ export default function Section3() {
 
   const calculateSectionScore = (sectionIndex: number) => {
     let score = 0
-    sections[sectionIndex].questions.forEach((_, questionIndex) => {
-      const questionId = `section${sectionIndex + 1}_q${questionIndex + 1}`
-      const answer = answers[questionId]
-      if (answer) {
-        // คะแนนตามตัวเลือก: ทุกวัน = 3, 3-4 ต่อสัปดาห์ = 2, แทบไม่ทำ = 1
-        if (answer === "ทุกวัน/เกือบทุกวัน") score += 3
-        else if (answer === "3-4 ต่อสัปดาห์") score += 2
-        else if (answer === "แทบไม่ทำ/ไม่ทำเลย") score += 1
-      }
+    sections[sectionIndex].questions.forEach((_, qIdx) => {
+      const id = `section${sectionIndex + 1}_q${qIdx + 1}`
+      const ans = answers[id]
+      if (ans === "ทุกวัน/เกือบทุกวัน") score += 3
+      else if (ans === "3-4 ต่อสัปดาห์") score += 2
+      else if (ans === "แทบไม่ทำ/ไม่ทำเลย") score += 1
     })
     return score
   }
@@ -145,98 +119,48 @@ export default function Section3() {
   const getScoreColorClasses = (color: string) => {
     switch (color) {
       case "green":
-        return {
-          bg: "bg-green-50",
-          border: "border-green-500",
-          text: "text-green-800",
-          badge: "bg-green-100 text-green-800",
-        }
+        return { bg: "bg-green-50", border: "border-green-500", text: "text-green-800", badge: "bg-green-100 text-green-800" }
       case "yellow":
-        return {
-          bg: "bg-yellow-50",
-          border: "border-yellow-500",
-          text: "text-yellow-800",
-          badge: "bg-yellow-100 text-yellow-800",
-        }
+        return { bg: "bg-yellow-50", border: "border-yellow-500", text: "text-yellow-800", badge: "bg-yellow-100 text-yellow-800" }
       case "orange":
-        return {
-          bg: "bg-orange-50",
-          border: "border-orange-500",
-          text: "text-orange-800",
-          badge: "bg-orange-100 text-orange-800",
-        }
+        return { bg: "bg-orange-50", border: "border-orange-500", text: "text-orange-800", badge: "bg-orange-100 text-orange-800" }
       case "red":
-        return {
-          bg: "bg-red-50",
-          border: "border-red-500",
-          text: "text-red-800",
-          badge: "bg-red-100 text-red-800",
-        }
+        return { bg: "bg-red-50", border: "border-red-500", text: "text-red-800", badge: "bg-red-100 text-red-800" }
       default:
-        return {
-          bg: "bg-gray-50",
-          border: "border-gray-500",
-          text: "text-gray-800",
-          badge: "bg-gray-100 text-gray-800",
-        }
+        return { bg: "bg-gray-50", border: "border-gray-500", text: "text-gray-800", badge: "bg-gray-100 text-gray-800" }
     }
   }
 
-  const getTotalQuestions = () => {
-    return sections.reduce((total, section) => total + section.questions.length, 0)
-  }
-
+  const getTotalQuestions = () => sections.reduce((t, s) => t + s.questions.length, 0)
   const getAnsweredQuestions = () => {
-    let count = 0
-    sections.forEach((section, sectionIndex) => {
-      section.questions.forEach((_, questionIndex) => {
-        const questionId = `section${sectionIndex + 1}_q${questionIndex + 1}`
-        if (answers[questionId]) {
-          count++
-        }
-      })
-    })
-    return count
+    let c = 0
+    sections.forEach((s, si) =>
+      s.questions.forEach((_, qi) => {
+        const id = `section${si + 1}_q${qi + 1}`
+        if (answers[id]) c++
+      }),
+    )
+    return c
   }
+  const isAllAnswered = () => getAnsweredQuestions() === getTotalQuestions()
 
-  const isAllAnswered = () => {
-    return getAnsweredQuestions() === getTotalQuestions()
-  }
-
-
-  // Update the handleNext function to scroll to the first unanswered question
   const handleNext = async () => {
     if (!isAllAnswered()) {
       setShowValidation(true)
-      let firstUnansweredElement: HTMLElement | null = null
-      sections.forEach((section, sectionIndex) => {
-        section.questions.forEach((_, questionIndex) => {
-          const questionId = `section${sectionIndex + 1}_q${questionIndex + 1}`
-          if (!answers[questionId] && !firstUnansweredElement) {
-            firstUnansweredElement = document.getElementById(questionId)
-          }
-        })
-      })
-      if (firstUnansweredElement) {
-        (firstUnansweredElement as HTMLElement).scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        })
-      } else {
-        window.scrollTo({ top: 0, behavior: "smooth" })
-      }
-
+      let first: HTMLElement | null = null
+      sections.forEach((s, si) =>
+        s.questions.forEach((_, qi) => {
+          const id = `section${si + 1}_q${qi + 1}`
+          if (!answers[id] && !first) first = document.getElementById(id)
+        }),
+      )
+      if (first) first.scrollIntoView({ behavior: "smooth", block: "center" })
+      else window.scrollTo({ top: 0, behavior: "smooth" })
       return
     }
-
     const sessionId = sessionStorage.getItem("session_id") || ""
     await saveSection3Answers(sessionId, answers)
     window.location.href = "/section4"
-  }
-
-  const clearAllData = () => {
-    sessionStorage.removeItem("surveyAnswers")
-    setAnswers({})
   }
 
   return (
@@ -250,23 +174,21 @@ export default function Section3() {
             </h1>
           </div>
 
-          {/* Progress indicator */}
+          {/* Progress */}
           <div className="px-3 sm:px-4 md:px-5 lg:px-6 pb-3">
             <div className="flex justify-between items-center text-xs sm:text-sm text-gray-600">
-              <span>
-                ความคืบหน้า: {getAnsweredQuestions()}/{getTotalQuestions()}
-              </span>
+              <span>ความคืบหน้า: {getAnsweredQuestions()}/{getTotalQuestions()}</span>
               <span>{Math.round((getAnsweredQuestions() / getTotalQuestions()) * 100)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
               <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${(getAnsweredQuestions() / getTotalQuestions()) * 100}%` }}
-              ></div>
+              />
             </div>
           </div>
 
-          {/* Validation message */}
+          {/* Validation */}
           {showValidation && (
             <div className="mx-3 sm:mx-4 md:mx-5 lg:mx-6 mb-3 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-start space-x-2">
@@ -297,92 +219,77 @@ export default function Section3() {
                   {section.title}
                 </h2>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse bg-gray-50 rounded-lg shadow-sm">
-                    <thead>
-                      <tr className="bg-gray-100 border-b border-gray-200">
-                        <th className="p-2 text-left text-xs sm:text-sm font-semibold text-gray-700 min-w-[120px] sm:min-w-[180px] md:min-w-[220px] lg:min-w-[250px]">
-                          รายการ
+                {/* ตารางเหมือน desktop แต่ปุ่มตัวเลือกไม่มีข้อความ */}
+                <table className="w-full border-collapse bg-gray-50 rounded-lg shadow-sm table-fixed">
+                  <thead>
+                    <tr className="bg-gray-100 border-b border-gray-200">
+                      <th className="p-2 text-left text-[11px] sm:text-sm font-semibold text-gray-700 w-1/2 break-words leading-snug">
+                        รายการ
+                      </th>
+                      {options.map((option, idx) => (
+                        <th
+                          key={idx}
+                          className="p-2 text-center text-[11px] sm:text-sm font-semibold text-gray-700 w-1/6 break-words leading-snug"
+                        >
+                          {option}
                         </th>
-                        {options.map((option, optionIndex) => (
-                          <th
-                            key={optionIndex}
-                            className="p-2 text-center text-xs sm:text-sm font-semibold text-gray-700"
-                          >
-                            <div className="w-full min-w-[160px] sm:min-w-[180px] md:min-w-[200px] lg:min-w-[220px]">
-                              {option}
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {section.questions.map((question, questionIndex) => {
-                        const questionId = `section${sectionIndex + 1}_q${questionIndex + 1}`
-                        const isAnswered = !!answers[questionId]
-                        const isHighlighted = showValidation && !isAnswered
-
-                        return (
-                          <tr
-                            key={questionId}
-                            id={questionId}
-                            className={`border-b border-gray-200 last:border-b-0 transition-all duration-200 ${
-                              isHighlighted ? "bg-red-50" : "hover:bg-white"
-                            }`}
-                          >
-                            <td className="p-2 text-xs sm:text-sm text-gray-800 font-medium">
-                              {question}
-                              {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 inline-block ml-2" />}
-                            </td>
-                            {options.map((option, optionIndex) => (
-                              <td key={optionIndex} className="p-1 text-center">
-                                <div
-                                  onClick={() => handleAnswerChange(questionId, option)}
-                                  className={`flex items-center justify-center w-full h-full py-1.5 px-0.5 rounded-md cursor-pointer transition-all duration-200 border-2 ${
-                                    answers[questionId] === option
-                                      ? "bg-blue-100 border-blue-500"
-                                      : "border-transparent hover:bg-blue-50 hover:border-blue-200"
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {section.questions.map((question, questionIndex) => {
+                      const questionId = `section${sectionIndex + 1}_q${questionIndex + 1}`
+                      const isAnswered = !!answers[questionId]
+                      const isHighlighted = showValidation && !isAnswered
+                      return (
+                        <tr
+                          key={questionId}
+                          id={questionId}
+                          className={`border-b border-gray-200 last:border-b-0 transition-all duration-200 ${
+                            isHighlighted ? "bg-red-50" : "hover:bg-white"
+                          }`}
+                        >
+                          <td className="p-2 text-[12px] sm:text-sm text-gray-800 font-medium break-words leading-snug">
+                            {question}
+                            {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 inline-block ml-2" />}
+                          </td>
+                          {options.map((option, i) => (
+                            <td key={i} className="p-1 text-center align-middle">
+                              <button
+                                type="button"
+                                onClick={() => handleAnswerChange(questionId, option)}
+                                aria-label={option}
+                                title={option}
+                                className={`w-full h-full py-2 rounded-md border-2 transition-all ${
+                                  answers[questionId] === option
+                                    ? "bg-blue-100 border-blue-500"
+                                    : "border-transparent hover:bg-blue-50 hover:border-blue-200"
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block w-4 h-4 rounded-full align-middle border-2 ${
+                                    answers[questionId] === option ? "bg-blue-600 border-blue-600" : "bg-white border-gray-300"
                                   }`}
-                                  style={{ minWidth: "160px" }}
-                                >
-                                  <div
-                                    className={`w-3.5 h-3.5 border-2 rounded-full flex items-center justify-center transition-all duration-200 ${
-                                      answers[questionId] === option
-                                        ? "border-blue-600 bg-blue-600"
-                                        : "border-gray-300 bg-white"
-                                    }`}
-                                  >
-                                    {answers[questionId] === option && (
-                                      <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-                            ))}
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                                />
+                                <span className="sr-only">{option}</span>
+                              </button>
+                            </td>
+                          ))}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
 
-                <div
-                  className={`${colorClasses.bg} p-3 sm:p-4 md:p-5 lg:p-6 rounded-lg space-y-2 sm:space-y-3 border-l-4 ${colorClasses.border}`}
-                >
-                  <h3 className={`text-sm sm:text-base md:text-lg lg:text-xl font-medium ${colorClasses.text}`}>
-                    ผลการประเมิน
-                  </h3>
+                <div className={`${colorClasses.bg} p-3 sm:p-4 md:p-5 lg:p-6 rounded-lg space-y-2 sm:space-y-3 border-l-4 ${colorClasses.border}`}>
+                  <h3 className={`text-sm sm:text-base md:text-lg lg:text-xl font-medium ${colorClasses.text}`}>ผลการประเมิน</h3>
                   <div className="space-y-1 sm:space-y-2">
                     <p className={`text-xs sm:text-sm md:text-base lg:text-lg ${colorClasses.text}`}>
                       <span className="font-medium">คะแนน:</span>
-                      <span className={`ml-2 px-2 py-1 rounded-md font-bold ${colorClasses.badge}`}>
-                        {sectionScore}
-                      </span>
+                      <span className={`ml-2 px-2 py-1 rounded-md font-bold ${colorClasses.badge}`}>{sectionScore}</span>
                     </p>
                     {scoreMessage && (
-                      <p className={`text-xs sm:text-sm md:text-base lg:text-lg ${colorClasses.text} leading-relaxed`}>
-                        {scoreMessage}
-                      </p>
+                      <p className={`text-xs sm:text-sm md:text-base lg:text-lg ${colorClasses.text} leading-relaxed`}>{scoreMessage}</p>
                     )}
                   </div>
                 </div>
@@ -391,7 +298,7 @@ export default function Section3() {
           })}
         </div>
 
-        {/* Navigation Buttons */}
+        {/* Navigation */}
         <div className="bg-white border-t shadow-sm w-full mx-auto p-4 sm:p-5 md:p-6 lg:p-8">
           <div className="flex justify-between items-center">
             <Link
@@ -405,9 +312,7 @@ export default function Section3() {
               <button
                 onClick={handleNext}
                 className={`flex items-center px-6 sm:px-7 md:px-8 lg:px-10 py-3 sm:py-3.5 md:py-4 lg:py-5 rounded-md sm:rounded-lg transition-colors text-sm sm:text-base md:text-lg lg:text-xl font-medium shadow-lg hover:shadow-xl !border-none ${
-                  isAllAnswered()
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  isAllAnswered() ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
                 <span>ถัดไป</span>
