@@ -9,16 +9,13 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 
-import { ensureUserAndSession, saveSection2Answers } from "@/lib/surveySession"
-
 export default function Section2() {
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [showValidation, setShowValidation] = useState(false)
   const [bmi, setBmi] = useState<string | null>(null)
   const [bsa, setBsa] = useState<string | null>(null)
   const [isSurveyFinished, setIsSurveyFinished] = useState(false) // New state for finished flag
-  
-  
+
   // Load answers and finished flag from sessionStorage on component mount
   useEffect(() => {
     const savedAnswers = sessionStorage.getItem("surveyAnswers")
@@ -31,24 +28,6 @@ export default function Section2() {
     }
   }, [])
 
-useEffect(() => {
-  if (typeof window === "undefined") return
-  if (sessionStorage.getItem("session_id")) return
-
-  let cancelled = false
-  ;(async () => {
-    try {
-      const { sessionId, lineUserId } = await ensureUserAndSession()
-      if (cancelled) return
-      sessionStorage.setItem("session_id", sessionId)
-      if (lineUserId) sessionStorage.setItem("line_user_id", lineUserId)
-    } catch (e) {
-      console.error("ensureUserAndSession failed:", e)
-    }
-  })();
-
-  return () => { cancelled = true }
-}, []);
   // Scroll to top when the component mounts
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -136,6 +115,18 @@ useEffect(() => {
 
       const newAnswers = { ...answers }
 
+      if (type === "input" && questionConfig?.inputType === "number") {
+        const numValue = Number.parseFloat(value as string)
+
+        // Check if value exceeds max or is below min
+        if (questionConfig.max !== undefined && numValue > questionConfig.max) {
+          return // Don't update if exceeds max
+        }
+        if (questionConfig.min !== undefined && numValue < questionConfig.min) {
+          return // Don't update if below min
+        }
+      }
+
       if (type === "checkbox") {
         let currentValues = (newAnswers[questionId] || []) as string[]
         const isNoneOption = value === "ไม่มี"
@@ -205,7 +196,7 @@ useEffect(() => {
   )
 
   const generalQuestions = [
-    { id: "age", label: "อายุ (ปี)", type: "input", inputType: "number", required: true },
+    { id: "age", label: "อายุ (ปี)", type: "input", inputType: "number", required: true, min: 1, max: 100 },
     {
       id: "gender",
       label: "เพศ",
@@ -215,15 +206,15 @@ useEffect(() => {
       layout: "flex flex-wrap gap-x-4 gap-y-2",
     },
     {
-      id: "year_level",
+      id: "year",
       label: "ชั้นปี",
       type: "radio",
       options: ["ชั้นปีที่ 4", "ชั้นปีที่ 5", "ชั้นปีที่ 6"],
       required: true,
-      layout: "flex flex-wrap gap-x-4 gap-y-2",
+      layout: "grid grid-cols-3 gap-2",
     },
-    { id: "height", label: "ส่วนสูง (เซนติเมตร)", type: "input", inputType: "number", required: true },
-    { id: "weight", label: "น้ำหนัก (กิโลกรัม)", type: "input", inputType: "number", required: true },
+    { id: "height", label: "ส่วนสูง (ซม.)", type: "input", inputType: "number", required: true, min: 1, max: 250 },
+    { id: "weight", label: "น้ำหนัก (กก.)", type: "input", inputType: "number", required: true, min: 1, max: 250 },
     {
       id: "underlying_diseases",
       label: "โรคประจำตัว",
@@ -369,10 +360,7 @@ useEffect(() => {
     return true
   }
 
-  const handleNext = async () => {
-
-    console.log("answers:", answers);
-
+  const handleNext = () => {
     if (!isAllAnswered()) {
       setShowValidation(true)
 
@@ -420,18 +408,7 @@ useEffect(() => {
       }
       return
     }
-
-    let sessionId = sessionStorage.getItem("session_id") || ""
-    if (!sessionId) {
-      const { sessionId: sid, lineUserId } = await ensureUserAndSession()
-      sessionId = sid
-      sessionStorage.setItem("session_id", sid)
-      if (lineUserId) sessionStorage.setItem("line_user_id", lineUserId)
-    }
-
-    await saveSection2Answers(sessionId, answers)
     window.location.href = "/section3"
-
   }
 
   return (
@@ -514,7 +491,7 @@ useEffect(() => {
                 <div className="flex items-start justify-between">
                   <h3 className="text-xs sm:text-sm md:text-base lg:text-lg font-medium text-gray-900 leading-relaxed">
                     {index + 1}. {q.label}
-                    {q.required && <span className="text-red-500 ml-1">*</span>}
+                    {q.required && !isQuestionAnswered && <span className="text-red-500 ml-1">*</span>}
                   </h3>
                   {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 ml-2" />}
                 </div>
@@ -524,8 +501,10 @@ useEffect(() => {
                     id={q.id}
                     type={q.inputType}
                     value={(answers[q.id] as string) || ""}
-                    onChange={(e) => handleAnswerChange(q.id, e.target.value, "input")}
-                    className="mt-1 block w-20 sm:w-24 md:w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => handleAnswerChange(q.id, e.target.value, "input", q)}
+                    min={q.min}
+                    max={q.max}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                 )}
 
@@ -554,7 +533,14 @@ useEffect(() => {
                           id={`${q.id}-${option}`}
                           checked={answers[q.id] === option}
                           className="mt-0.5 sm:mt-0"
-                          readOnly
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (answers[q.id] === option) {
+                              handleAnswerChange(q.id, undefined, "radio")
+                            } else {
+                              handleAnswerChange(q.id, option, "radio")
+                            }
+                          }}
                         />
                         <Label
                           htmlFor={`${q.id}-${option}`}
@@ -589,8 +575,13 @@ useEffect(() => {
                           <Checkbox
                             id={`${q.id}-${option}`}
                             checked={(answers[q.id] as string[] | undefined)?.includes(option)}
-                            readOnly // Make checkbox read-only as parent div controls state
-                            disabled={isDisabled} // Disable the actual checkbox input
+                            disabled={isDisabled}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (!isDisabled) {
+                                handleAnswerChange(q.id, option, "checkbox", q)
+                              }
+                            }}
                           />
                           <Label
                             htmlFor={`${q.id}-${option}`}
@@ -620,8 +611,14 @@ useEffect(() => {
                         <Checkbox
                           id={`${q.id}-อื่นๆ`}
                           checked={(answers[q.id] as string[] | undefined)?.includes("อื่นๆ")}
-                          readOnly // Make checkbox read-only
-                          disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")} // Disable if "ไม่มี" is selected
+                          disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const isNoneSelected = (answers[q.id] as string[] | undefined)?.includes("ไม่มี")
+                            if (!isNoneSelected) {
+                              handleAnswerChange(q.id, "อื่นๆ", "checkbox", q)
+                            }
+                          }}
                         />
                         <Label
                           htmlFor={`${q.id}-อื่นๆ`}
@@ -652,7 +649,7 @@ useEffect(() => {
                   <div className="mt-4">
                     <Label htmlFor={q.otherInputId!} className="text-sm md:text-base font-medium">
                       โปรดระบุรายละเอียดการผ่าตัด:
-                      {q.required && <span className="text-red-500 ml-1">*</span>}
+                      {q.required && !isQuestionAnswered && <span className="text-red-500 ml-1">*</span>}
                     </Label>
                     <Textarea
                       id={q.otherInputId!}
@@ -717,5 +714,3 @@ useEffect(() => {
     </div>
   )
 }
-
-
