@@ -222,8 +222,8 @@ useEffect(() => {
       required: true,
       layout: "flex flex-wrap gap-x-4 gap-y-2",
     },
-    { id: "height", label: "ส่วนสูง (ซม.)", type: "input", inputType: "number", required: true },
-    { id: "weight", label: "น้ำหนัก (กก.)", type: "input", inputType: "number", required: true },
+    { id: "height", label: "ส่วนสูง (เซนติเมตร)", type: "input", inputType: "number", required: true },
+    { id: "weight", label: "น้ำหนัก (กิโลกรัม)", type: "input", inputType: "number", required: true },
     {
       id: "underlying_diseases",
       label: "โรคประจำตัว",
