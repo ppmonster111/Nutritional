@@ -546,11 +546,11 @@ export default function Section2() {
                           value={option}
                           id={`${q.id}-${option}`}
                           checked={answers[q.id] === option}
-                          className="mt-0.5 sm:mt-0"
+                          className="mt-0.5 sm:mt-0 pointer-events-none"
                         />
                         <Label
                           htmlFor={`${q.id}-${option}`}
-                          className="ml-2 text-sm sm:text-base cursor-pointer flex-1"
+                          className="ml-2 text-sm sm:text-base cursor-pointer flex-1 pointer-events-none"
                         >
                           {option}
                         </Label>
