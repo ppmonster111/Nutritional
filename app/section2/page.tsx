@@ -488,7 +488,13 @@ export default function Section2() {
                   <Input
                     id={q.id}
                     type={q.inputType}
-                    {...(q.id === "age" ? { min: 1, max: 100, step: 1, inputMode: "numeric", pattern: "[0-9]*" } : {})}
+                    {...(q.id === "age"
+                      ? { min: 1, max: 100, step: 1, inputMode: "numeric", pattern: "[0-9]*" }
+                      : q.id === "height"
+                      ? { min: 1, max: 250, step: 1, inputMode: "numeric", pattern: "[0-9]*" }
+                      : q.id === "weight"
+                      ? { min: 1, max: 250, step: 1, inputMode: "numeric", pattern: "[0-9]*" }
+                      : {})}
                     value={(answers[q.id] as string) || ""}
                     onChange={(e) => {
                       const rawValue = e.target.value
@@ -500,24 +506,40 @@ export default function Section2() {
                         } else {
                           handleAnswerChange(q.id, "", "input")
                         }
+                      } else if (q.id === "height") {
+                        let numericOnly = rawValue.replace(/[^0-9]/g, "")
+                        if (numericOnly.length > 0) {
+                          const clamped = Math.max(1, Math.min(250, Number.parseInt(numericOnly, 10)))
+                          handleAnswerChange(q.id, String(clamped), "input")
+                        } else {
+                          handleAnswerChange(q.id, "", "input")
+                        }
+                      } else if (q.id === "weight") {
+                        let numericOnly = rawValue.replace(/[^0-9]/g, "")
+                        if (numericOnly.length > 0) {
+                          const clamped = Math.max(1, Math.min(250, Number.parseInt(numericOnly, 10)))
+                          handleAnswerChange(q.id, String(clamped), "input")
+                        } else {
+                          handleAnswerChange(q.id, "", "input")
+                        }
                       } else {
                         handleAnswerChange(q.id, rawValue, "input")
                       }
                     }}
                     onKeyDown={(e) => {
-                      if (q.id === "age") {
+                      if (q.id === "age" || q.id === "height" || q.id === "weight") {
                         if (["e", "E", "+", "-", "."].includes(e.key)) {
                           e.preventDefault()
                         }
                       }
                     }}
                     onWheel={(e) => {
-                      if (q.id === "age") {
+                      if (q.id === "age" || q.id === "height" || q.id === "weight") {
                         ;(e.currentTarget as HTMLInputElement).blur()
                       }
                     }}
                     className={`mt-1 block ${
-                    q.id === "age" ? "w-full" : "w-20 sm:w-24 md:w-28"
+                    q.id === "age" || q.id === "height" || q.id === "weight" ? "w-full" : "w-20 sm:w-24 md:w-28"
                     } px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
                   />
                 )}
