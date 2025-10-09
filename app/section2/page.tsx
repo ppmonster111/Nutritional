@@ -479,7 +479,7 @@ export default function Section2() {
                 <div className="flex items-start justify-between">
                   <h3 className="text-xs sm:text-sm md:text-base lg:text-lg font-medium text-gray-900 leading-relaxed">
                     {index + 1}. {q.label}
-                    {q.required && <span className="text-red-500 ml-1">*</span>}
+                    {q.required && !isQuestionAnswered && <span className="text-red-500 ml-1">*</span>}
                   </h3>
                   {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 ml-2" />}
                 </div>
