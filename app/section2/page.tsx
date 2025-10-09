@@ -490,7 +490,9 @@ export default function Section2() {
                     type={q.inputType}
                     value={(answers[q.id] as string) || ""}
                     onChange={(e) => handleAnswerChange(q.id, e.target.value, "input")}
-                    className="mt-1 block w-20 sm:w-24 md:w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className={`mt-1 block ${
+                    q.id === "age" ? "w-full" : "w-20 sm:w-24 md:w-28"
+                    } px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
                   />
                 )}
 
