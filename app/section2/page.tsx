@@ -488,8 +488,34 @@ export default function Section2() {
                   <Input
                     id={q.id}
                     type={q.inputType}
+                    {...(q.id === "age" ? { min: 1, max: 100, step: 1, inputMode: "numeric", pattern: "[0-9]*" } : {})}
                     value={(answers[q.id] as string) || ""}
-                    onChange={(e) => handleAnswerChange(q.id, e.target.value, "input")}
+                    onChange={(e) => {
+                      const rawValue = e.target.value
+                      if (q.id === "age") {
+                        let numericOnly = rawValue.replace(/[^0-9]/g, "")
+                        if (numericOnly.length > 0) {
+                          const clamped = Math.max(1, Math.min(100, Number.parseInt(numericOnly, 10)))
+                          handleAnswerChange(q.id, String(clamped), "input")
+                        } else {
+                          handleAnswerChange(q.id, "", "input")
+                        }
+                      } else {
+                        handleAnswerChange(q.id, rawValue, "input")
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (q.id === "age") {
+                        if (["e", "E", "+", "-", "."].includes(e.key)) {
+                          e.preventDefault()
+                        }
+                      }
+                    }}
+                    onWheel={(e) => {
+                      if (q.id === "age") {
+                        ;(e.currentTarget as HTMLInputElement).blur()
+                      }
+                    }}
                     className={`mt-1 block ${
                     q.id === "age" ? "w-full" : "w-20 sm:w-24 md:w-28"
                     } px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
@@ -521,7 +547,6 @@ export default function Section2() {
                           id={`${q.id}-${option}`}
                           checked={answers[q.id] === option}
                           className="mt-0.5 sm:mt-0"
-                          readOnly
                         />
                         <Label
                           htmlFor={`${q.id}-${option}`}
@@ -556,7 +581,6 @@ export default function Section2() {
                           <Checkbox
                             id={`${q.id}-${option}`}
                             checked={(answers[q.id] as string[] | undefined)?.includes(option)}
-                            readOnly // Make checkbox read-only as parent div controls state
                             disabled={isDisabled} // Disable the actual checkbox input
                           />
                           <Label
@@ -587,7 +611,6 @@ export default function Section2() {
                         <Checkbox
                           id={`${q.id}-อื่นๆ`}
                           checked={(answers[q.id] as string[] | undefined)?.includes("อื่นๆ")}
-                          readOnly // Make checkbox read-only
                           disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")} // Disable if "ไม่มี" is selected
                         />
                         <Label
