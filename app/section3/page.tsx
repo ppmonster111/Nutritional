@@ -154,7 +154,9 @@ export default function Section3() {
           if (!answers[id] && !first) first = document.getElementById(id)
         }),
       )
-      if (first) first.scrollIntoView({ behavior: "smooth", block: "center" })
+      if (first && typeof (first as HTMLElement).scrollIntoView === "function") {
+        ;(first as HTMLElement).scrollIntoView({ behavior: "smooth", block: "center" })
+      }
       else window.scrollTo({ top: 0, behavior: "smooth" })
       return
     }
@@ -260,17 +262,23 @@ export default function Section3() {
                                 onClick={() => handleAnswerChange(questionId, option)}
                                 aria-label={option}
                                 title={option}
-                                className={`w-full h-full py-2 rounded-md border-2 transition-all ${
+                                className={`w-full h-full py-1.5 px-0.5 rounded-md border-2 transition-all flex items-center justify-center ${
                                   answers[questionId] === option
                                     ? "bg-blue-100 border-blue-500"
                                     : "border-transparent hover:bg-blue-50 hover:border-blue-200"
                                 }`}
                               >
-                                <span
-                                  className={`inline-block w-4 h-4 rounded-full align-middle border-2 ${
-                                    answers[questionId] === option ? "bg-blue-600 border-blue-600" : "bg-white border-gray-300"
+                                <div
+                                  className={`w-3.5 h-3.5 border-2 rounded-full flex items-center justify-center transition-all ${
+                                    answers[questionId] === option
+                                      ? "border-blue-600 bg-blue-600"
+                                      : "border-gray-300 bg-white"
                                   }`}
-                                />
+                                >
+                                  {answers[questionId] === option && (
+                                    <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                                  )}
+                                </div>
                                 <span className="sr-only">{option}</span>
                               </button>
                             </td>
