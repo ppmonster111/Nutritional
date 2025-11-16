@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { ArrowLeft, ArrowRight, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea" // New import for Textarea component
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -14,7 +14,7 @@ export default function Section2() {
   const [showValidation, setShowValidation] = useState(false)
   const [bmi, setBmi] = useState<string | null>(null)
   const [bsa, setBsa] = useState<string | null>(null)
-  const [isSurveyFinished, setIsSurveyFinished] = useState(false) // New state for finished flag
+  const [isSurveyFinished, setIsSurveyFinished] = useState(false)
 
   // Load answers and finished flag from sessionStorage on component mount
   useEffect(() => {
@@ -53,7 +53,6 @@ export default function Section2() {
     }
   }, [answers.height, answers.weight])
 
-  // Function to get BMI color class
   const getBmiColorClass = (bmiValue: number | null) => {
     if (bmiValue === null) return "text-gray-700"
     if (bmiValue < 18.5) return "text-bmi-underweight"
@@ -64,7 +63,6 @@ export default function Section2() {
     return "text-gray-700"
   }
 
-  // Function to get BMI status text
   const getBmiStatusText = (bmiValue: number | null) => {
     if (bmiValue === null) return ""
     if (bmiValue < 18.5) return "น้ำหนักน้อย"
@@ -75,7 +73,6 @@ export default function Section2() {
     return ""
   }
 
-  // Function to get BSA color class
   const getBsaColorClass = (bsaValue: number | null) => {
     if (bsaValue === null) return "text-gray-700"
     if (bsaValue < 1.4) return "text-bsa-small"
@@ -84,7 +81,6 @@ export default function Section2() {
     return "text-gray-700"
   }
 
-  // Function to get BSA status text
   const getBsaStatusText = (bsaValue: number | null) => {
     if (bsaValue === null || isNaN(bsaValue)) {
       return ""
@@ -106,9 +102,8 @@ export default function Section2() {
       questionId: string,
       value: string | string[] | undefined,
       type: "input" | "radio" | "checkbox" | "other_input",
-      questionConfig?: any, // Pass the full question config here for specific logic
+      questionConfig?: any,
     ) => {
-      // Prevent saving if the survey is already marked as finished
       if (isSurveyFinished) {
         return
       }
@@ -122,58 +117,69 @@ export default function Section2() {
 
         if (isNoneOption) {
           if (currentValues.includes("ไม่มี")) {
-            // "ไม่มี" is currently selected, and user is clicking it again (to deselect)
             currentValues = []
           } else {
-            // "ไม่มี" is not selected, and user is selecting it
             currentValues = ["ไม่มี"]
           }
-          // Always clear associated 'other' input if "ไม่มี" is involved
           if (questionConfig?.hasOther && newAnswers[questionConfig.otherInputId!]) {
             delete newAnswers[questionConfig.otherInputId!]
           }
         } else {
-          // Clicked option is NOT "ไม่มี"
-          // If "ไม่มี" was selected, deselect it first
           if (currentValues.includes("ไม่มี")) {
             currentValues = currentValues.filter((item) => item !== "ไม่มี")
           }
 
           if (currentValues.includes(value as string)) {
-            // Deselect the clicked option
             currentValues = currentValues.filter((item) => item !== value)
-            // If "อื่นๆ" is deselected, clear its input
             if (isOtherOption && questionConfig?.hasOther && newAnswers[questionConfig.otherInputId!]) {
               delete newAnswers[questionConfig.otherInputId!]
             }
           } else {
-            // Select the clicked option
             currentValues = [...currentValues, value as string]
           }
         }
         newAnswers[questionId] = currentValues
       } else if (type === "radio") {
         if (value === undefined) {
-          // Deselect current option
           delete newAnswers[questionId]
-          // Clear associated input for surgery_history
           if (questionId === "surgery_history") {
             delete newAnswers["surgery_history_details"]
           }
         } else {
-          // Select new option
           newAnswers[questionId] = value as string
-          // Clear associated input if not selecting 'มี' for surgery_history
           if (questionId === "surgery_history" && value !== "มี") {
             delete newAnswers["surgery_history_details"]
           }
         }
       } else if (type === "input" || type === "other_input") {
-        newAnswers[questionId] = value as string
+        let newValue = (value as string) ?? ""
+
+        // ✅ บังคับ min/max ตอน "พิมพ์" สำหรับ age/height/weight
+        if (type === "input" && (questionId === "age" || questionId === "height" || questionId === "weight")) {
+          if (newValue === "") {
+            // allow empty so userลบได้
+          } else {
+            const num = Number.parseFloat(newValue)
+            if (!Number.isNaN(num)) {
+              let min = 0
+              let max = 250
+              if (questionId === "age") {
+                max = 100
+              }
+              let clamped = num
+              if (clamped < min) clamped = min
+              if (clamped > max) clamped = max
+              newValue = String(clamped)
+            } else {
+              newValue = ""
+            }
+          }
+        }
+
+        newAnswers[questionId] = newValue
       }
 
       setAnswers(newAnswers)
-      // Only save to sessionStorage when navigating or finishing, not on every change
       sessionStorage.setItem("surveyAnswers", JSON.stringify(newAnswers))
 
       if (showValidation) {
@@ -184,6 +190,7 @@ export default function Section2() {
   )
 
   const generalQuestions = [
+    { id: "email", label: "อีเมล", type: "input", inputType: "email", required: true },
     { id: "age", label: "อายุ (ปี)", type: "input", inputType: "number", required: true },
     {
       id: "gender",
@@ -246,7 +253,7 @@ export default function Section2() {
       label: "ประวัติการผ่าตัด",
       type: "radio",
       options: ["มี", "ไม่มี"],
-      hasOtherInput: true, // New property for radio with conditional input
+      hasOtherInput: true,
       otherInputId: "surgery_history_details",
       required: true,
       layout: "flex flex-wrap gap-x-4 gap-y-2",
@@ -273,7 +280,7 @@ export default function Section2() {
         "Forensics",
       ],
       required: true,
-      layout: "grid grid-cols-2 sm:grid-cols-3 gap-2", // Grid layout for many options
+      layout: "grid grid-cols-2 sm:grid-cols-3 gap-2",
     },
   ]
 
@@ -289,9 +296,8 @@ export default function Section2() {
           count++
           if (q.hasOtherInput && answers[q.id] === "มี") {
             if (answers[q.otherInputId!] && (answers[q.otherInputId!] as string).trim() !== "") {
-              // Counted if main radio is answered and other input is filled
+              // ok
             } else {
-              // If 'มี' is selected but other input is empty, don't count as answered
               count--
             }
           }
@@ -352,7 +358,7 @@ export default function Section2() {
     if (!isAllAnswered()) {
       setShowValidation(true)
 
-      let firstUnansweredElement = null
+      let firstUnansweredElement: HTMLElement | null = null
       for (const q of generalQuestions) {
         const questionId = q.id
         let isQuestionAnswered = true
@@ -444,8 +450,6 @@ export default function Section2() {
 
         {/* Content */}
         <div className="flex-grow p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 space-y-2 sm:space-y-3 md:space-y-4">
-          {" "}
-          {/* Adjusted space-y */}
           {generalQuestions.map((q, index) => {
             const isQuestionAnswered = (() => {
               if (q.type === "input") {
@@ -490,7 +494,12 @@ export default function Section2() {
                     type={q.inputType}
                     value={(answers[q.id] as string) || ""}
                     onChange={(e) => handleAnswerChange(q.id, e.target.value, "input")}
-                    className="mt-1 block w-20 sm:w-24 md:w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    {...(q.id === "age"
+                      ? { min: 0, max: 100 }
+                      : q.id === "height" || q.id === "weight"
+                        ? { min: 0, max: 250 }
+                        : {})}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                 )}
 
@@ -501,10 +510,8 @@ export default function Section2() {
                         key={option}
                         onClick={() => {
                           if (answers[q.id] === option) {
-                            // If clicking the same option, deselect it
                             handleAnswerChange(q.id, undefined, "radio")
                           } else {
-                            // If clicking a different option, select it
                             handleAnswerChange(q.id, option, "radio")
                           }
                         }}
@@ -537,14 +544,14 @@ export default function Section2() {
                     {q.options?.map((option) => {
                       const isNoneOption = option === "ไม่มี"
                       const isNoneSelected = (answers[q.id] as string[] | undefined)?.includes("ไม่มี")
-                      const isDisabled = isNoneSelected && !isNoneOption // Disable if "ไม่มี" is selected and this is not "ไม่มี"
+                      const isDisabled = isNoneSelected && !isNoneOption
 
                       return (
                         <div
                           key={option}
                           onClick={() => {
                             if (!isDisabled) {
-                              handleAnswerChange(q.id, option, "checkbox", q) // Pass q here
+                              handleAnswerChange(q.id, option, "checkbox", q)
                             }
                           }}
                           className={`flex items-center space-x-1.5 p-2 sm:p-2.5 md:p-3 border rounded-md sm:rounded-lg bg-white hover:bg-gray-50 hover:border-blue-300 hover:shadow-sm cursor-pointer ${
@@ -554,8 +561,8 @@ export default function Section2() {
                           <Checkbox
                             id={`${q.id}-${option}`}
                             checked={(answers[q.id] as string[] | undefined)?.includes(option)}
-                            readOnly // Make checkbox read-only as parent div controls state
-                            disabled={isDisabled} // Disable the actual checkbox input
+                            readOnly
+                            disabled={isDisabled}
                           />
                           <Label
                             htmlFor={`${q.id}-${option}`}
@@ -573,7 +580,7 @@ export default function Section2() {
                         onClick={() => {
                           const isNoneSelected = (answers[q.id] as string[] | undefined)?.includes("ไม่มี")
                           if (!isNoneSelected) {
-                            handleAnswerChange(q.id, "อื่นๆ", "checkbox", q) // Pass q here
+                            handleAnswerChange(q.id, "อื่นๆ", "checkbox", q)
                           }
                         }}
                         className={`flex items-center space-x-1.5 p-2 sm:p-2.5 md:p-3 border rounded-md sm:rounded-lg bg-white hover:bg-gray-50 hover:border-blue-300 hover:shadow-sm cursor-pointer ${
@@ -585,8 +592,8 @@ export default function Section2() {
                         <Checkbox
                           id={`${q.id}-อื่นๆ`}
                           checked={(answers[q.id] as string[] | undefined)?.includes("อื่นๆ")}
-                          readOnly // Make checkbox read-only
-                          disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")} // Disable if "ไม่มี" is selected
+                          readOnly
+                          disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")}
                         />
                         <Label
                           htmlFor={`${q.id}-อื่นๆ`}
@@ -597,14 +604,13 @@ export default function Section2() {
                           อื่นๆ
                         </Label>
                         {(answers[q.id] as string[] | undefined)?.includes("อื่นๆ") && (
-                          // Prevent click on input from toggling checkbox
                           <Textarea
                             value={(answers[q.otherInputId!] as string) || ""}
-                            onChange={(e) => handleAnswerChange(q.otherInputId!, e.target.value, "other_input", q)} // Pass q here
-                            onClick={(e) => e.stopPropagation()} // Stop propagation for input clicks
+                            onChange={(e) => handleAnswerChange(q.otherInputId!, e.target.value, "other_input", q)}
+                            onClick={(e) => e.stopPropagation()}
                             placeholder="ระบุ"
                             className="ml-1.5 flex-grow px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 min-h-[60px] resize-y"
-                            disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")} // Disable input if "ไม่มี" is selected
+                            disabled={(answers[q.id] as string[] | undefined)?.includes("ไม่มี")}
                           />
                         )}
                       </div>
@@ -612,7 +618,6 @@ export default function Section2() {
                   </div>
                 )}
 
-                {/* Conditional input for Surgery History details */}
                 {q.id === "surgery_history" && answers.surgery_history === "มี" && (
                   <div className="mt-4">
                     <Label htmlFor={q.otherInputId!} className="text-sm md:text-base font-medium">
