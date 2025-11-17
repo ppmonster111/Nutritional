@@ -1,117 +1,28 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Checkbox } from "@/components/ui/checkbox"
-import { useRouter } from "next/navigation"
-import { AlertCircle } from "lucide-react"
-import { supabaseBrowser } from "@/lib/supabase/browser"
-import liff from "@line/liff"
-import { ensureUserAndSession } from "@/lib/surveySession"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { AlertCircle } from "lucide-react";
 
 export default function Home() {
-  const router = useRouter()
+  const router = useRouter();
+  const [isConsentChecked, setIsConsentChecked] = useState(false);
+  const [showConsentWarning, setShowConsentWarning] = useState(false);
 
-  const [isConsentChecked, setIsConsentChecked] = useState(false)
-  const [showConsentWarning, setShowConsentWarning] = useState(false)
-
-  // สถานะสำหรับ LIFF (เพื่อ UX และกัน error)
-  const [liffReady, setLiffReady] = useState(false)
-  const [authError, setAuthError] = useState<string | null>(null)
-
-  // ---------- 1) เตรียม LIFF + ดึง line_user_id ถ้ามีอยู่แล้ว ----------
-  useEffect(() => {
-  ;(async () => {
-    try {
-      await liff.init({ liffId: process.env.NEXT_PUBLIC_LIFF_ID! })
-      setLiffReady(true)
-
-      // ✅ ให้แน่ใจว่ามี Supabase session (anonymous) ก่อนแตะ DB
-      const supabase = supabaseBrowser()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        const { error } = await supabase.auth.signInAnonymously()
-        if (error) throw error
-      }
-
-      const lidFromUrl = new URLSearchParams(window.location.search).get("line_user_id")
-      if (lidFromUrl) sessionStorage.setItem("line_user_id", lidFromUrl)
-
-      let lid = sessionStorage.getItem("line_user_id") ?? ""
-      if (!lid && liff.isLoggedIn()) {
-        const p = await liff.getProfile()
-        lid = p.userId
-        sessionStorage.setItem("line_user_id", p.userId)
-        sessionStorage.setItem("display_name", p.displayName ?? "")
-        sessionStorage.setItem("picture_url", p.pictureUrl ?? "")
-      }
-
-      if (lid && !sessionStorage.getItem("session_id")) {
-        const display_name = sessionStorage.getItem("display_name") || undefined
-        const picture_url = sessionStorage.getItem("picture_url") || undefined
-        const { sessionId } = await ensureUserAndSession(lid, { display_name, picture_url })
-        sessionStorage.setItem("session_id", sessionId)
-      }
-    } catch (e: any) {
-      console.error("LIFF init / bootstrap failed:", e)
-      setAuthError(e?.message ?? "LIFF initialize failed")
-    }
-  })()
-}, [])
-
-  // ---------- 2) เริ่มทำแบบสอบถาม ----------
   const handleStartSurvey = async () => {
-  if (!isConsentChecked) { setShowConsentWarning(true); return }
-  setShowConsentWarning(false)
-
-  try {
-    // ✅ ให้แน่ใจว่ามี Supabase session ก่อนแตะ DB
-    const supabase = supabaseBrowser()
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      const { error } = await supabase.auth.signInAnonymously()
-      if (error) throw error
-    }
-
-    // เคลียร์คำตอบเดิมให้เริ่มใหม่ทุกครั้ง
-    sessionStorage.removeItem("surveyAnswers")
-    sessionStorage.removeItem("isSurveyFinished")
-
-    // เอา line_user_id จาก sessionStorage ก่อน
-    let lid = sessionStorage.getItem("line_user_id") ?? ""
-
-    // ถ้ายังไม่มี และ LIFF พร้อมแล้ว ให้พยายาม login / get profile
-    if (!lid && liffReady) {
-      if (!liff.isLoggedIn()) {
-        liff.login({ redirectUri: window.location.href })
-        return
+    try {
+      if (!isConsentChecked) {
+        setShowConsentWarning(true);
+        return;
       }
-      const p = await liff.getProfile()
-      lid = p.userId
-      sessionStorage.setItem("line_user_id", p.userId)
-      sessionStorage.setItem("display_name", p.displayName ?? "")
-      sessionStorage.setItem("picture_url", p.pictureUrl ?? "")
-    }
+      setShowConsentWarning(false);
 
-    // ถ้ายังไม่มีจริง ๆ ให้แจ้งเตือน
-    if (!lid) {
-      alert("ไม่พบ LINE user id กรุณาเข้าสู่ระบบด้วย LINE ก่อนเริ่มทำแบบสอบถาม")
-      return
+      router.push("/forms/health-survey-v2");
+    } catch (e) {
+      console.error("start survey failed:", e);
+      alert("เริ่มทำแบบสอบถามไม่สำเร็จ กรุณาลองใหม่");
     }
-
-    // เปิด/ดึง session ถ้ายังไม่มี
-    if (!sessionStorage.getItem("session_id")) {
-      const display_name = sessionStorage.getItem("display_name") || undefined
-      const picture_url = sessionStorage.getItem("picture_url") || undefined
-      const { sessionId } = await ensureUserAndSession(lid, { display_name, picture_url })
-      sessionStorage.setItem("session_id", sessionId)
-    }
-
-    router.push("/section2")
-  } catch (e) {
-    console.error("start survey failed:", e)
-    alert("เริ่มทำแบบสอบถามไม่สำเร็จ กรุณาลองใหม่")
-  }
-}
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-100 via-white to-blue-100 px-4 py-10 flex justify-center items-center font-sans">
@@ -120,41 +31,38 @@ export default function Home() {
           Case Record Form
         </h1>
 
-        {/* แจ้งสถานะ LIFF / Auth (ถ้าจำเป็น) */}
-        {!liffReady && (
-          <p className="text-sm text-gray-500">กำลังเตรียมระบบเข้าสู่ระบบด้วย LINE …</p>
-        )}
-        {authError && (
-          <p className="text-sm text-red-600">เกิดข้อผิดพลาดในการเตรียม LIFF: {authError}</p>
-        )}
-
         <div className="space-y-4 text-gray-700 text-sm sm:text-base md:text-lg leading-relaxed">
           <p>
-            แบบสอบถามข้อมูลการบริโภคและสุขภาพร่างกายและสุขภาพจิตใจของนักศึกษาแพทย์ชั้นปีที่ 4-6 ที่ศูนย์แพทย์ศึกษาชั้นคลินิกโรงพยาบาลลำปาง
-            ปีการศึกษา 2568
+            แบบสอบถามข้อมูลการบริโภคและสุขภาพร่างกายและสุขภาพจิตใจของนักศึกษาแพทย์ชั้นปีที่ 4-6
+            ที่ศูนย์แพทย์ศึกษาชั้นคลินิกโรงพยาบาลลำปาง ปีการศึกษา 2568
           </p>
 
           <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 mt-6 mb-2">
             Consent Form
           </h3>
           <p>
-            แบบฟอร์มยินยอมเข้าร่วมการศึกษา: ข้อมูลที่เก็บจะรวมถึงข้อมูลทั่วไป ข้อมูลพฤติกรรมการบริโภค ข้อมูลด้านความรู้ด้านโภชนาการ
-            การประเมินความเครียดและสุขภาพจิต โดยยืนยันว่าข้อมูลทั้งหมดจะถูกเก็บเป็นความลับและไม่สามารถระบุถึงตัวตนของผู้ตอบได้
+            แบบฟอร์มยินยอมเข้าร่วมการศึกษา: ข้อมูลที่เก็บจะรวมถึงข้อมูลทั่วไป ข้อมูลพฤติกรรมการบริโภค
+            ข้อมูลด้านความรู้ด้านโภชนาการ การประเมินความเครียดและสุขภาพจิต
+            โดยยืนยันว่าข้อมูลทั้งหมดจะถูกเก็บเป็นความลับและไม่สามารถระบุถึงตัวตนของผู้ตอบได้
             ข้อมูลที่เก็บจะใช้เพื่อการศึกษาและวิจัยเท่านั้น โดยไม่มีการเผยแพร่ในรูปแบบที่สามารถระบุตัวตนได้
           </p>
 
-          <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 mt-6 mb-2">วัตถุประสงค์</h3>
+          <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 mt-6 mb-2">
+            วัตถุประสงค์
+          </h3>
           <p>1. เพื่อศึกษาปัจจัยด้านภาวะโภชนาการที่มีผลต่อสุขภาวะทางกายของนักศึกษาแพทย์ชั้นคลินิกโรงพยาบาลลำปาง</p>
           <p>2. เพื่อศึกษาปัจจัยด้านภาวะโภชนาการที่มีผลต่อสุขภาวะทางจิตใจของนักศึกษาแพทย์ชั้นคลินิกโรงพยาบาลลำปาง</p>
         </div>
 
         <div className="flex items-center space-x-2 mt-8">
-          <Checkbox
+          <input
             id="consent"
+            type="checkbox"
             checked={isConsentChecked}
-            onCheckedChange={(checked) => {
-              setIsConsentChecked(!!checked)
-              if (showConsentWarning && !!checked) setShowConsentWarning(false)
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              const ok = e.target.checked;
+              setIsConsentChecked(ok);
+              if (showConsentWarning && ok) setShowConsentWarning(false);
             }}
           />
           <label
@@ -179,15 +87,15 @@ export default function Home() {
         <div className="mt-8 flex justify-center">
           <button
             onClick={handleStartSurvey}
-            className={`inline-flex items-center px-8 sm:px-10 py-3 sm:py-4 bg-blue-600 text-white rounded-md sm:rounded-lg transition-colors text-base sm:text-lg md:text-xl font-medium shadow-md hover:shadow-lg ${
-              !isConsentChecked ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-700"
-            }`}
-            disabled={!isConsentChecked && showConsentWarning} // Disable button if warning is shown and not consented
+            className={`inline-flex items-center px-8 sm:px-10 py-3 sm:py-4 rounded-md sm:rounded-lg text-base sm:text-lg md:text-xl font-medium shadow-md hover:shadow-lg transition-colors
+              ${isConsentChecked ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-blue-600/50 text-white cursor-not-allowed"}`}
+            disabled={!isConsentChecked}
+            aria-disabled={!isConsentChecked}
           >
             เริ่มทำแบบประเมิน
           </button>
         </div>
       </div>
     </div>
-  )
+  );
 }
