@@ -1,92 +1,97 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { Utensils, BookOpen } from "lucide-react"
-import Link from "next/link"
-import Image from "next/image"
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import Image from 'next/image'
+import { Utensils, BookOpen } from 'lucide-react'
+
+type Ans = Record<string, any>
+const read = (k: string) => {
+  try { return JSON.parse(sessionStorage.getItem(k) || '{}') } catch { return {} }
+}
+
+// --- helpers ---
+const firstOf = (obj: Ans, keys: string[]) => keys.find(k => obj[k] !== undefined) ? obj[keys.find(k => obj[k] !== undefined)!] : undefined
+
+const normChoice = (v: any): string => {
+  const s = String(v ?? '').trim()
+  // ทำให้คำตอบที่สะกดต่างกันเล็กน้อยมารวมกัน
+  if (/ทุกวัน/.test(s)) return 'ทุกวัน/เกือบทุกวัน'
+  if (/(3-4).*(สัปดาห์)/.test(s)) return '3-4 ครั้งต่อสัปดาห์'
+  if (/แทบไม่ทำ|ไม่ทำเลย/.test(s)) return 'แทบไม่ทำ/ไม่ทำเลย'
+  return s
+}
+
+const triToScore = (v: any): number => {
+  const s = normChoice(v)
+  if (s === 'ทุกวัน/เกือบทุกวัน') return 3
+  if (s === '3-4 ครั้งต่อสัปดาห์') return 2
+  if (s === 'แทบไม่ทำ/ไม่ทำเลย') return 1
+  const n = Number.parseInt(String(v), 10)
+  return Number.isFinite(n) ? n : 0
+}
+
+const sum = (ns: number[]) => ns.reduce((t, n) => t + n, 0)
 
 export default function SummaryPage() {
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const router = useRouter()
+  const [answers, setAnswers] = useState<Ans>({})
 
-  // Load answers from sessionStorage
-  useEffect(() => {
-    const savedAnswers = sessionStorage.getItem("surveyAnswers")
-    if (savedAnswers) {
-      setAnswers(JSON.parse(savedAnswers))
-    }
-  }, [])
+  useEffect(() => setAnswers(read('surveyAnswers')), [])
 
-  // Scroll to top when component mounts
-  useEffect(() => {
-    window.scrollTo(0, 0)
-  }, [])
+  // รองรับทั้งคีย์แบบ diet31_q1..q5 และ section1_q1..q5
+  const dietTotal = (prefixes: string[]) =>
+    sum(
+      Array.from({ length: 5 }, (_, i) => i + 1).map(i => {
+        const v = firstOf(answers, prefixes.map(p => `${p}_q${i}`))
+        return triToScore(v)
+      })
+    )
 
-  const calculateSection3Score = (sectionIndex: number) => {
-    let score = 0
-    const questions = 5
+  const sugarScore = useMemo(() => dietTotal(['diet31', 'section1']), [answers])
+  const fatScore = useMemo(() => dietTotal(['diet32', 'section2']), [answers])
+  const sodiumScore = useMemo(() => dietTotal(['diet33', 'section3']), [answers])
 
-    for (let i = 1; i <= questions; i++) {
-      const questionId = `section${sectionIndex + 1}_q${i}`
-      const answer = answers[questionId]
-      if (answer === "ทุกวัน/เกือบทุกวัน") score += 3
-      else if (answer === "3-4 ต่อสัปดาห์") score += 2
-      else if (answer === "แทบไม่ทำ/ไม่ทำเลย") score += 1
-    }
-    return score
-  }
+  // ST-5: รองรับ st5_q* และ stress_q*
+  const stressScore = useMemo(() => {
+    return sum(
+      Array.from({ length: 5 }, (_, i) => i + 1).map(i => {
+        const raw = firstOf(answers, [`st5_q${i}`, `stress_q${i}`])
+        const n = Number.parseInt(String(raw ?? 0), 10)
+        return Number.isFinite(n) ? n : 0
+      })
+    )
+  }, [answers])
 
-  const sugarScore = calculateSection3Score(0)
-  const fatScore = calculateSection3Score(1)
-  const sodiumScore = calculateSection3Score(2)
-
-  const calculateStressScore = () => {
-    let score = 0
-    for (let i = 1; i <= 5; i++) {
-      const questionId = `stress_q${i}`
-      const answer = answers[questionId]
-      if (answer) {
-        score += Number.parseInt(answer)
-      }
-    }
-    return score
-  }
-
-  const stressScore = calculateStressScore()
-
-  const getSection3Message = (score: number, type: "sugar" | "fat" | "sodium") => {
+  const section3Msg = (score: number, type: 'sugar' | 'fat' | 'sodium') => {
     if (score === 5) {
-      if (type === "sugar") return "ยินดีด้วย คุณบริโภคน้ำตาลในปริมาณที่พอเหมาะ"
-      if (type === "fat") return "คุณมีความเสี่ยงน้อยในการได้รับผลเสียจากการบริโภคไขมันไม่เหมาะสม"
-      if (type === "sodium") return "ยินดีด้วยคุณได้รับโซเดียมในปริมาณที่น้อย ทำดีแล้วนะ"
-    } else if (score >= 6 && score <= 9) {
-      if (type === "sugar") return "คุณมีความเสี่ยงปานกลางในแง่ของพฤติกรรมการบริโภคน้ำตาล"
-      if (type === "fat") return "คุณมีความเสี่ยงปานกลางในการเลือกบริโภคไขมัน"
-      if (type === "sodium") return "คุณได้รับโซเดียมในระดับปานกลาง ยังถือว่าไม่มีอันตรายอะไรมากต่อสุขภาพ"
-    } else if (score >= 10 && score <= 13) {
-      if (type === "sugar") return "คุณมีความเสี่ยงสูงในแง่ของพฤติกรรมการบริโภคน้ำตาล"
-      if (type === "fat") return "คุณมีความเสี่ยงสูงในการเลือกบริโภคไขมัน"
-      if (type === "sodium") return "คุณได้รับโซเดียมในปริมาณสูงแน่ๆ ถึงเวลาตระหนักถึงพฤติกรรมการบริโภคได้แล้ว"
-    } else if (score >= 14 && score <= 15) {
-      if (type === "sugar") return "รู้ตัวบ้างไหม? ว่าคุณมีความเสี่ยงสูงมาก กับการได้รับน้ำตาลเกิน"
-      if (type === "fat") return "เฮ้อมือมิจูรษา!!!! คุณมีพฤติกรรมการบริโภคไขมันที่อันตรายต่อชีวิตคุณมาก"
-      if (type === "sodium") return "คุณได้รับโซเดียมสูงมากกก แนะนำให้ปรับเปลี่ยนพฤติกรรมการบริโภคโดยด่วน"
+      if (type === 'sugar') return 'ยอดเยี่ยม บริโภคน้ำตาลในระดับเหมาะสม'
+      if (type === 'fat') return 'ไขมันอยู่ในเกณฑ์ดี'
+      return 'โซเดียมอยู่ในเกณฑ์น้อย ทำได้ดีต่อเนื่อง'
     }
-    return ""
+    if (score <= 9) return 'ความเสี่ยงปานกลาง ลองปรับพฤติกรรมทีละนิด'
+    if (score <= 13) return 'ความเสี่ยงสูง ควรจำกัดปริมาณและอ่านฉลากโภชนาการ'
+    return 'เสี่ยงสูงมาก ควรปรับทันที เลี่ยงหวาน/มัน/เค็มเป็นหลัก'
   }
 
-  const getStressMessage = (score: number) => {
-    if (score >= 0 && score <= 4) return "ความเครียดน้อย"
-    if (score >= 5 && score <= 7) return "ความเครียดปานกลาง"
-    if (score >= 8 && score <= 9) return "ความเครียดมาก"
-    if (score >= 10 && score <= 15) return "ความเครียดมากที่สุด"
-    return ""
+  const stressMsg = (s: number) =>
+    s <= 4 ? 'ความเครียดน้อย'
+      : s <= 7 ? 'ความเครียดปานกลาง'
+        : s <= 9 ? 'ความเครียดมาก'
+          : 'ความเครียดมากที่สุด'
+
+  const badge = (score: number, max: number) => {
+    const pct = (score / max) * 100
+    if (pct <= 33) return 'bg-green-100 text-green-800 border-green-300'
+    if (pct <= 66) return 'bg-yellow-100 text-yellow-800 border-yellow-300'
+    return 'bg-red-100 text-red-800 border-red-300'
   }
 
-  const getScoreColor = (score: number, maxScore: number) => {
-    const percentage = (score / maxScore) * 100
-    if (percentage <= 33) return "bg-green-100 text-green-800 border-green-300"
-    if (percentage <= 66) return "bg-yellow-100 text-yellow-800 border-yellow-300"
-    return "bg-red-100 text-red-800 border-red-300"
+  const onConfirm = async () => {
+    // ถ้ามี API submit ของโปรเจกต์ ให้ส่งก่อน แล้วค่อยไป thank-you
+    // await fetch('/api/form/submit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(answers) }).catch(()=>{})
+    router.push('/thank-you')
   }
 
   return (
@@ -94,6 +99,7 @@ export default function SummaryPage() {
       <div className="w-full max-w-4xl bg-white shadow-xl rounded-2xl overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-8 text-center">
           <h1 className="text-3xl font-bold mb-2">สรุปผลการประเมิน</h1>
+          <p className="opacity-90">ตรวจทานข้อมูลอีกครั้งก่อนยืนยันส่งแบบฟอร์ม</p>
         </div>
 
         <div className="p-6 space-y-8">
@@ -107,54 +113,36 @@ export default function SummaryPage() {
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Sugar */}
-              <div className={`border-2 rounded-xl p-5 ${getScoreColor(sugarScore, 15)}`}>
+              <div className={`border-2 rounded-xl p-5 ${badge(sugarScore, 15)}`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Image
-                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/candies-yHU2GBvOgqIfboeGIzin1EXolXzbwE.png"
-                    alt="Candies"
-                    width={20}
-                    height={20}
-                  />
+                  <Image src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/candies-yHU2GBvOgqIfboeGIzin1EXolXzbwE.png" alt="Candies" width={20} height={20} />
                   <h3 className="font-semibold">การบริโภคหวาน</h3>
                 </div>
                 <div className="text-3xl font-bold mb-2">{sugarScore} / 15</div>
-                <p className="text-sm leading-relaxed">{getSection3Message(sugarScore, "sugar")}</p>
+                <p className="text-sm leading-relaxed">{section3Msg(sugarScore, 'sugar')}</p>
               </div>
 
-              {/* Fat */}
-              <div className={`border-2 rounded-xl p-5 ${getScoreColor(fatScore, 15)}`}>
+              <div className={`border-2 rounded-xl p-5 ${badge(fatScore, 15)}`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Image
-                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/fat-V7zwtwaZDVOgykfi60KxdXiVoOWQlV.png"
-                    alt="Fat"
-                    width={20}
-                    height={20}
-                  />
+                  <Image src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/fat-V7zwtwaZDVOgykfi60KxdXiVoOWQlV.png" alt="Fat" width={20} height={20} />
                   <h3 className="font-semibold">การบริโภคไขมัน</h3>
                 </div>
                 <div className="text-3xl font-bold mb-2">{fatScore} / 15</div>
-                <p className="text-sm leading-relaxed">{getSection3Message(fatScore, "fat")}</p>
+                <p className="text-sm leading-relaxed">{section3Msg(fatScore, 'fat')}</p>
               </div>
 
-              {/* Sodium */}
-              <div className={`border-2 rounded-xl p-5 ${getScoreColor(sodiumScore, 15)}`}>
+              <div className={`border-2 rounded-xl p-5 ${badge(sodiumScore, 15)}`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Image
-                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/sodium-XtUm0VmipFjvKOQF95kFkwRsDEuzEf.png"
-                    alt="Sodium"
-                    width={20}
-                    height={20}
-                  />
+                  <Image src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/sodium-XtUm0VmipFjvKOQF95kFkwRsDEuzEf.png" alt="Sodium" width={20} height={20} />
                   <h3 className="font-semibold">การบริโภคโซเดียม</h3>
                 </div>
                 <div className="text-3xl font-bold mb-2">{sodiumScore} / 15</div>
-                <p className="text-sm leading-relaxed">{getSection3Message(sodiumScore, "sodium")}</p>
+                <p className="text-sm leading-relaxed">{section3Msg(sodiumScore, 'sodium')}</p>
               </div>
             </div>
           </div>
 
-          {/* Section 4 */}
+          {/* Section 4 (placeholder) */}
           <div>
             <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
               <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
@@ -162,7 +150,6 @@ export default function SummaryPage() {
               </div>
               ส่วนที่ 4: ความรู้และทักษะด้านโภชนาการ
             </h2>
-
             <div className="bg-green-50 border-2 border-green-200 rounded-xl p-5">
               <p className="text-green-800">คุณได้ทำการประเมินความรู้และทักษะด้านโภชนาการเรียบร้อยแล้ว</p>
             </div>
@@ -172,25 +159,20 @@ export default function SummaryPage() {
           <div>
             <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
               <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Image
-                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/fear-FVLmM9Q5QYbTY8RkfGhowuCVCvvA45.png"
-                  alt="Stress"
-                  width={20}
-                  height={20}
-                />
+                <Image src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/fear-FVLmM9Q5QYbTY8RkfGhowuCVCvvA45.png" alt="Stress" width={20} height={20} />
               </div>
               ส่วนที่ 5: ความเครียด
             </h2>
 
-            <div className={`border-2 rounded-xl p-6 ${getScoreColor(stressScore, 15)}`}>
+            <div className={`border-2 rounded-xl p-6 ${badge(stressScore, 15)}`}>
               <div className="text-center mb-4">
                 <div className="text-4xl font-bold mb-2">{stressScore} / 15</div>
-                <div className="text-lg font-semibold">{getStressMessage(stressScore)}</div>
+                <div className="text-lg font-semibold">{stressMsg(stressScore)}</div>
               </div>
               {stressScore >= 10 && (
                 <div className="mt-4 pt-4 border-t border-red-300">
                   <p className="text-sm font-medium text-center">
-                    ระดับความเครียดของคุณอยู่ในเกณฑ์สูง ควรพบที่ปรึกษาหรือผู้เชี่ยวชาญเพื่อรับคำแนะนำ
+                    ระดับความเครียดค่อนข้างสูง แนะนำปรึกษาผู้เชี่ยวชาญเพื่อรับคำแนะนำเพิ่มเติม
                   </p>
                 </div>
               )}
@@ -198,17 +180,16 @@ export default function SummaryPage() {
           </div>
         </div>
 
-        <div className="bg-gray-50 border-t p-6">
-          <Link
-            href="/thank-you"
-            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors text-lg font-semibold shadow-lg"
-          >
-            <span>เสร็จสิ้น</span>
+        <div className="bg-gray-50 border-t p-6 flex flex-col md:flex-row gap-3">
+          {/* ปุ่มกลับไปแก้ (เปลี่ยนเส้นทางตามโครงฟอร์มจริงของน้อง) */}
+          <Link href="/form/health-survey-v2" className="flex-1 text-center px-6 py-4 rounded-xl border hover:bg-gray-50">
+            ย้อนกลับไปแก้ไข
           </Link>
+          <button onClick={onConfirm} className="flex-1 px-6 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-colors text-lg font-semibold shadow-lg">
+            ยืนยันและส่ง
+          </button>
         </div>
       </div>
     </div>
   )
 }
-
-

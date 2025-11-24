@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { supabaseBrowser } from '@/lib/supabase/browser';
 
 /* -------------------- Types -------------------- */
@@ -64,14 +65,24 @@ function sumScores(fields: any[], values: Record<string, any>) {
 export default function DynamicSurvey({ schema, locale }: { schema: Schema; locale: string }) {
     const sections = schema.sections || [];
 
-    // ให้ 'general' มาก่อน แล้วตามด้วย diet -> knowledge -> st5
+    // ให้ 'general' มาก่อน แล้วตามด้วย diet -> knowledge -> st5 -> summary
     const ordered = useMemo(() => {
         const preferred = ['general', 'diet', 'knowledge', 'st5'] as const;
         const picked = preferred.map(k => sections.find(s => s.key === k)).filter(Boolean) as Schema['sections'];
         const rest = sections
             .filter(s => !preferred.includes(s.key as any))
             .sort((a, b) => (a.order_no ?? 0) - (b.order_no ?? 0));
-        return [...picked, ...rest];
+
+        const base = [...picked, ...rest];
+
+        // แทรก "summary" เป็น section ปลอมไว้ท้ายสุด
+        const summarySec: any = {
+            id: '__summary__',
+            key: 'summary',
+            title_json: { th: 'สรุปผลการประเมิน' },
+            fields: [],
+        };
+        return [...base, summarySec];
     }, [sections]);
 
     const [step, setStep] = useState(() => {
@@ -106,7 +117,6 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
     const setValue = (key: string, val: any) => {
         setAnswers(prev => {
             const next = { ...prev };
-            // toggle (กดซ้ำเพื่อลบค่า)
             if (prev[key] === val) delete next[key];
             else next[key] = val;
 
@@ -116,39 +126,61 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         });
     };
 
+    // helper หา value ของ "ไม่มี" และ "อื่นๆ" จาก options (ดูทั้ง value และ label)
+    const getSpecialValues = (opts: Array<{ value: string; label_json: any }>, locale: string) => {
+        let noneVal: string | null = null
+        let otherVal: string | null = null
+        for (const o of opts) {
+            const txt = (t(o.label_json, locale) || '').trim().toLowerCase()
+            const v = (o.value || '').trim().toLowerCase()
+            if (v === 'none' || v === 'no' || /^(ไม่มี|none|no)$/i.test(txt)) noneVal = o.value
+            if (v === 'other' || /(อื่นๆ?|other)/i.test(txt)) otherVal = o.value
+        }
+        return { noneVal, otherVal }
+    }
+
     const setMultiValue = (
         key: string,
         val: string,
         opts: Array<{ value: string; label_json: any }>
     ) => {
         setAnswers(prev => {
-            const arr: string[] = Array.isArray(prev[key]) ? [...prev[key]] : [];
-            const isOn = arr.includes(val);
+            const arr: string[] = Array.isArray(prev[key]) ? [...prev[key]] : []
+            const { noneVal, otherVal } = getSpecialValues(opts, locale)
 
-            const lbl = (v: string) => t(opts.find(o => o.value === v)?.label_json, locale);
-            const isNone = (v: string) => v === 'none' || /ไม่มี/i.test(lbl(v) || '');
+            let nextArr = arr
+            const isClickingNone = !!noneVal && val === noneVal
+            const isSelected = arr.includes(val)
 
-            let nextArr = arr;
-            if (isOn) {
-                // กดซ้ำ = เอาออก
-                nextArr = arr.filter(x => x !== val);
+            if (isClickingNone) {
+                // คลิก "ไม่มี" → toggle: ถ้าติดอยู่ให้ถอด, ถ้าไม่ติดให้เหลือ "ไม่มี" ตัวเดียว
+                if (arr.includes(noneVal!)) nextArr = []
+                else nextArr = [noneVal!]
             } else {
-                // ถ้าเลือกค่าอื่นขณะมี 'ไม่มี' ให้ล้าง 'ไม่มี' ออกก่อน
-                nextArr = [...arr.filter(x => !isNone(x)), val];
-                // ถ้าเลือก 'ไม่มี' -> ให้เหลือ 'ไม่มี' ค่าเดียว
-
+                // คลิกตัวเลือกอื่น
+                if (isSelected) {
+                    nextArr = arr.filter(x => x !== val)            // เอาออก
+                } else {
+                    nextArr = [...arr.filter(x => x !== noneVal), val] // ใส่ค่าใหม่ + ล้าง "ไม่มี"
+                }
             }
 
-            const next = { ...prev, [key]: nextArr };
-            sessionStorage.setItem('surveyAnswers', JSON.stringify(next));
-            if (showValidation) setShowValidation(false);
-            return next;
-        });
-    };
+            // ล้างรายละเอียดอื่นๆ ถ้าไม่ได้เลือก "อื่นๆ"
+            const next: Record<string, any> = { ...prev, [key]: nextArr }
+            if (!(otherVal && nextArr.includes(otherVal))) delete next[`${key}__other`]
+
+            sessionStorage.setItem('surveyAnswers', JSON.stringify(next))
+            if (showValidation) setShowValidation(false)
+            return next
+        })
+    }
+
+
 
     /* ---------- progress (นับเฉพาะฟิลด์ที่แสดงจริง) ---------- */
     const fieldsForProgress = useMemo(() => {
         if (!sec) return [];
+        if (sec.key === 'summary') return []; // summary ไม่ต้องนับฟิลด์
         if (sec.key !== 'general') return sec.fields;
 
         const L = (f: any) => t(f.label_json, locale).trim();
@@ -161,9 +193,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
 
         return sec.fields.filter((f: any) => {
             const label = L(f);
-            // ตัด "ระบุ (โรคประจำตัว)/(ยาที่ใช้ประจำ)" ออก
             if (/^ระบุ\s*\((ยาที่ใช้ประจำ|โรคประจำตัว)\)/i.test(label)) return false;
-            // ซ่อนรายละเอียดผ่าตัดถ้ายังไม่ได้เลือก "มี"
             if (/ระบุ.*ผ่าตัด|รายละเอียด.*ผ่าตัด/i.test(label) && !hasSurgery) return false;
             return true;
         });
@@ -183,10 +213,14 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         () => fieldsForProgress.filter((f: any) => f.is_required && hasAnswer(f)).length,
         [fieldsForProgress, answers]
     );
-    const progressPct = totalRequired ? Math.round((answeredRequired / totalRequired) * 100) : 0;
+
+    const progressPct = useMemo(
+        () => (sec?.key === 'summary' ? 100 : totalRequired ? Math.round((answeredRequired / totalRequired) * 100) : 0),
+        [sec, totalRequired, answeredRequired]
+    );
 
     const goNext = () => {
-        if (answeredRequired !== totalRequired) {
+        if (sec?.key !== 'summary' && answeredRequired !== totalRequired) {
             setShowValidation(true);
             const first = (fieldsForProgress || []).find((f: any) => f.is_required && !hasAnswer(f));
             if (first) document.getElementById(first.key)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -196,6 +230,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
     };
     const goPrev = () => setStep(s => Math.max(0, s - 1));
 
+    /* ---------- submit ---------- */
     const handleSubmit = async () => {
         if (isSubmitting) return;
         try {
@@ -207,10 +242,9 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
             const bsaValue = bsaMosteller(height, weight);
             const bsaSize = bsaStatusText(bsaValue);
 
-            const { data: userData } = await supabase.auth.getUser();
-            const userId = userData?.user?.id ?? null;
+            // (auth ไม่จำเป็นต้องแนบ user id แล้ว)
+            await supabase.auth.getUser();
 
-            // ✅ เก็บค่าคำนวณไว้ใน answers._computed (ไม่สร้างคอลัมน์ใหม่ในตาราง)
             const answersWithComputed = {
                 ...answers,
                 _computed: {
@@ -221,24 +255,21 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                 },
             };
 
-            // NOTE: ใช้ชื่อตารางให้ตรงกับของคุณ
             const TABLE = 'survey_sessions';
-
             const payload = {
                 form_id: schema.form.id,
                 form_slug: schema.form.slug,
                 form_version: schema.form.version,
-                answers: answersWithComputed,            // ✅ ส่งแค่ answers (jsonb)
+                answers: answersWithComputed,
                 status: 'submitted',
                 submitted_at: new Date().toISOString(),
             };
 
-            // ✅ ไม่เรียก .select() เพื่อตัด query columns=
             const { error } = await supabase.from(TABLE).insert(payload);
             if (error) throw error;
 
             sessionStorage.removeItem('surveyAnswers');
-            router.replace('/thank-you');
+            router.replace('/thank-you'); // ✅ สรุป -> ยืนยันส่ง -> thank-you
         } catch (err) {
             console.error('submit failed:', err);
             alert('ส่งคำตอบไม่สำเร็จ กรุณาลองใหม่');
@@ -247,14 +278,13 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         }
     };
 
-    // ===================== Section 2: ข้อมูลทั่วไป =====================
+    /* ===================== Section 2: ข้อมูลทั่วไป ===================== */
     const generalSec = ordered.find(s => s?.key === 'general');
 
     const renderGeneral = () => {
         if (!generalSec) return null;
         const fields = [...generalSec.fields];
 
-        // จัดลำดับ: email → age → gender → class_year → height → weight → อื่นๆ
         const keyPriority: Record<string, number> = {
             email: 0, age: 1, gender: 2, class_year: 3, height_cm: 4, weight_kg: 5,
         };
@@ -264,18 +294,16 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
             return pa - pb;
         });
 
-        // หา field ที่ใช้คุมการแสดงรายละเอียดผ่าตัด
         const surgeryCtrl = fields.find(
             f => f.key === 'surgery' || /ประวัติการผ่าตัด/i.test(t(f.label_json, locale))
         );
 
         const ctrlVal = surgeryCtrl ? answers[surgeryCtrl.key] : undefined;
         const ctrlLabel = surgeryCtrl
-            ? t((surgeryCtrl.options || []).find(o => o.value === ctrlVal)?.label_json, locale)
+            ? t((surgeryCtrl.options || []).find((o: any) => o.value === ctrlVal)?.label_json, locale)
             : '';
         const surgeryIsNo = /ไม่มี|no/i.test(ctrlLabel || '');
 
-        // height/weight เพื่อคำนวณ BMI/BSA
         const hField = fields.find(f => f.key === 'height_cm') || fields.find(f => /ส่วนสูง|height/i.test(t(f.label_json, locale)));
         const wField = fields.find(f => f.key === 'weight_kg') || fields.find(f => /น้ำหนัก|weight/i.test(t(f.label_json, locale)));
         const hVal = Number(answers[hField?.key || ''] ?? 0) || undefined;
@@ -284,22 +312,13 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         const bsaVal = bsaMosteller(hVal, wVal);
         const bsaTxt = bsaStatusText(bsaVal);
 
-
-
         const renderOne = (f: any) => {
             const label = t(f.label_json, locale);
             const val = answers[f.key];
 
-            // ซ่อนฟิลด์ "ระบุรายละเอียดการผ่าตัด" เมื่อเลือก "ไม่มี"
-            if (/ระบุ.*ผ่าตัด|รายละเอียด.*ผ่าตัด/i.test(label) && surgeryIsNo) {
-                return null;
-            }
-            // เอา UI "ระบุ (โรคประจำตัว)" และ "ระบุ (ยาที่ใช้ประจำ)" ออก
-            if (/ระบุ.*(โรคประจำตัว|ยาที่ใช้ประจำ)/i.test(label)) {
-                return null;
-            }
+            if (/ระบุ.*ผ่าตัด|รายละเอียด.*ผ่าตัด/i.test(label) && surgeryIsNo) return null;
+            if (/ระบุ.*(โรคประจำตัว|ยาที่ใช้ประจำ)/i.test(label)) return null;
 
-            // TEXT / NUMBER / EMAIL
             if (f.type === 'text' || f.type === 'number') {
                 const isEmail = f.key === 'email' || /email|อีเมล/i.test(label);
                 const input = (
@@ -321,8 +340,6 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                         />
                     </div>
                 );
-
-                // แสดง BMI/BSA ใต้ "น้ำหนัก"
                 if (wField && f.key === wField.key) {
                     return (
                         <div key={f.id + '__with_metrics'}>
@@ -345,7 +362,6 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                 return input;
             }
 
-            // RADIO
             if (f.type === 'radio') {
                 return (
                     <div key={f.id} id={f.key} className="mb-4 rounded-xl border bg-white px-3 py-3">
@@ -375,7 +391,6 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                 );
             }
 
-            // SELECT
             if (f.type === 'select') {
                 return (
                     <div key={f.id} id={f.key} className="mb-4 rounded-xl border bg-white px-3 py-3">
@@ -400,28 +415,28 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                 );
             }
 
-
-            // MULTISELECT / CHECKBOX
             if (f.type === 'multiselect' || f.type === 'checkbox') {
-                type Option = { id: string; value: string; label_json: any; order_no?: number };
-
-                const arr: string[] = Array.isArray(val) ? val : [];
+                type Option = { id: string; value: string; label_json: any; order_no?: number }
+                const arr: string[] = Array.isArray(val) ? val : []
                 const opts = ((f.options || []) as Option[])
-                    .sort((a: Option, b: Option) => (a.order_no ?? 0) - (b.order_no ?? 0));
+                    .sort((a, b) => (a.order_no ?? 0) - (b.order_no ?? 0))
 
-                const labelOf = (v: string) => t(opts.find((o: Option) => o.value === v)?.label_json, locale) || '';
-                const hasNone = arr.some(v => v === 'none' || /ไม่มี/i.test(labelOf(v)));
+                const { noneVal, otherVal } = getSpecialValues(opts, locale)
+                const hasNone = !!noneVal && arr.includes(noneVal)
+                const hasOther = !!otherVal && arr.includes(otherVal)
 
                 return (
                     <div key={f.id} id={f.key} className="mb-4">
-                        <div className="font-medium mb-1">{label}{f.is_required && ' *'}</div>
+                        <div className="font-medium mb-1">
+                            {t(f.label_json, locale)}{f.is_required && ' *'}
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                             {opts.map(o => {
-                                const on = arr.includes(o.value);
-                                const txt = t(o.label_json, locale) || '';
-                                const isNone = o.value === 'none' || /ไม่มี/i.test(txt);
-                                // ถ้าเลือก "ไม่มี" ให้ disable ตัวอื่น แต่ปุ่ม "ไม่มี" ยังคลิกได้เพื่อล้าง
-                                const disabled = hasNone && !isNone;
+                                const on = arr.includes(o.value)
+                                const isNone = !!noneVal && o.value === noneVal
+                                const disabled = hasNone && !isNone // ถ้าเลือก "ไม่มี" → ปิดเฉพาะตัวที่ไม่ใช่ "ไม่มี"
+
                                 return (
                                     <label
                                         key={o.id}
@@ -432,16 +447,30 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                                             type="checkbox"
                                             className="mr-2"
                                             checked={on}
+                                            disabled={disabled}
                                             onChange={() => setMultiValue(f.key, o.value, opts)}
                                         />
-                                        <span>{txt}</span>
+                                        <span>{t(o.label_json, locale) || ''}</span>
                                     </label>
-                                );
+                                )
                             })}
                         </div>
-                        {/* ❌ ตัดช่อง “ระบุ (…)" ออกตามคำขอ */}
+
+                        {/* ช่อง "อื่นๆ" โผล่เมื่อถูกเลือก */}
+                        {hasOther && (
+                            <div className="mt-2">
+                                <input
+                                    type="text"
+                                    className="w-full rounded-lg border px-3 py-2"
+                                    placeholder="โปรดระบุรายละเอียด"
+                                    value={answers[`${f.key}__other`] ?? ''}
+                                    onChange={(e) => setValue(`${f.key}__other`, e.target.value)}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">ระบบจะบันทึกข้อความนี้คู่กับตัวเลือก “อื่นๆ”</p>
+                            </div>
+                        )}
                     </div>
-                );
+                )
             }
 
             return null;
@@ -450,7 +479,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         return <div className="space-y-6">{fields.map(renderOne)}</div>;
     };
 
-    // ===================== Section 3: Diet =====================
+    /* ===================== Section 3: Diet ===================== */
     const diet = ordered.find(s => s?.key === 'diet');
     const dietGroups = useMemo(() => {
         if (!diet) return {};
@@ -576,8 +605,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         );
     };
 
-
-    // ===================== Section 4: Knowledge =====================
+    /* ===================== Section 4: Knowledge ===================== */
     const knowledge = ordered.find(s => s?.key === 'knowledge');
     const k41Rows = (knowledge?.fields || []).filter(f => f.meta_json?.table_group === 'k41');
     const k42 = (knowledge?.fields || []).find(f => f.key === 'k42');
@@ -622,7 +650,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                                                             onClick={() => setValue(f.key, o.value)}
                                                             className={`flex items-center justify-center w-full h-full py-1.5 px-0.5 rounded-md cursor-pointer transition-all duration-200 border-2 ${answers[f.key] === o.value ? 'bg-blue-100 border-blue-500' : 'border-transparent hover:bg-blue-50 hover:border-blue-200'}`}
                                                         >
-                                                            <div className={`w-3.5 h-3.5 border-2 rounded-full flex items-center justify-center transition-all duration-200 ${answers[f.key] === o.value ? 'border-blue-600 bg-blue-600' : 'border-gray-300 bg-white'}`}>
+                                                            <div className={`w-3.5 h-3.5 border-2 rounded-full flex items-center justify-center ${answers[f.key] === o.value ? 'border-blue-600 bg-blue-600' : 'border-gray-300 bg-white'}`}>
                                                                 {answers[f.key] === o.value && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
                                                             </div>
                                                         </div>
@@ -686,8 +714,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         );
     };
 
-
-    // ===================== Section 5: ST5 =====================
+    /* ===================== Section 5: ST5 ===================== */
     const st5 = ordered.find(s => s?.key === 'st5');
     const st5Score = sumScores(st5?.fields || [], answers);
     const st5Level = useMemo(() => {
@@ -783,6 +810,98 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         );
     };
 
+    /* ===================== SUMMARY (ใหม่) ===================== */
+    const renderSummary = () => {
+        const height = Number(answers['height_cm']);
+        const weight = Number(answers['weight_kg']);
+        const { bmi: bmiValue, status: bmiStatus } = bmi(height, weight);
+        const bsaValue = bsaMosteller(height, weight);
+        const bsaTxt = bsaStatusText(bsaValue);
+
+        const Card = ({
+            title, score, max, img, msg,
+        }: { title: string; score: number; max: number; img: string; msg: string }) => {
+            const pct = (score / max) * 100;
+            const cls =
+                pct <= 33 ? 'bg-green-100 text-green-800 border-green-300'
+                    : pct <= 66 ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                        : 'bg-red-100 text-red-800 border-red-300';
+            return (
+                <div className={`border-2 rounded-xl p-5 ${cls}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                        <Image src={img} alt="" width={20} height={20} />
+                        <h3 className="font-semibold">{title}</h3>
+                    </div>
+                    <div className="text-3xl font-bold mb-2">{score} / {max}</div>
+                    <p className="text-sm leading-relaxed">{msg}</p>
+                </div>
+            );
+        };
+
+        return (
+            <div className="space-y-8">
+                {/* Diet summary */}
+                <div>
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">ส่วนที่ 3: พฤติกรรมการบริโภค</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card
+                            title="การบริโภคหวาน"
+                            score={diet31Score}
+                            max={15}
+                            img="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/candies-yHU2GBvOgqIfboeGIzin1EXolXzbwE.png"
+                            msg={getScoreMessage(diet31Score, 'sugar')}
+                        />
+                        <Card
+                            title="การบริโภคไขมัน"
+                            score={diet32Score}
+                            max={15}
+                            img="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/fat-V7zwtwaZDVOgykfi60KxdXiVoOWQlV.png"
+                            msg={getScoreMessage(diet32Score, 'fat')}
+                        />
+                        <Card
+                            title="การบริโภคโซเดียม"
+                            score={diet33Score}
+                            max={15}
+                            img="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/sodium-XtUm0VmipFjvKOQF95kFkwRsDEuzEf.png"
+                            msg={getScoreMessage(diet33Score, 'sodium')}
+                        />
+                    </div>
+                </div>
+
+                {/* ST-5 summary */}
+                <div>
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">ส่วนที่ 5: ความเครียด</h2>
+                    <div className="border-2 rounded-xl p-6">
+                        <div className="text-center mb-4">
+                            <div className="text-4xl font-bold mb-2">{st5Score} / 15</div>
+                            <div className="text-lg font-semibold">{st5Level || '-'}</div>
+                        </div>
+                        {st5Score >= 10 && (
+                            <div className="mt-4 pt-4 border-t border-red-300">
+                                <p className="text-sm font-medium text-center text-red-700">
+                                    ระดับความเครียดค่อนข้างสูง แนะนำปรึกษาผู้เชี่ยวชาญ
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* BMI/BSA */}
+                <div>
+                    <h2 className="text-xl font-bold text-gray-800 mb-4">สรุปตัวชี้วัดร่างกาย</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 rounded-xl border bg-gray-50">
+                            <div className="text-sm text-gray-700"><span className="font-medium">BMI:</span> {bmiValue ?? '-'} {bmiStatus ? `(${bmiStatus})` : ''}</div>
+                        </div>
+                        <div className="p-4 rounded-xl border bg-gray-50">
+                            <div className="text-sm text-gray-700"><span className="font-medium">BSA:</span> {bsaValue ?? '-'} {bsaTxt ? `(${bsaTxt})` : ''}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     /* -------------------- Layout -------------------- */
     return (
         <div className="min-h-screen bg-gradient-to-b from-blue-100 via-white to-blue-100 px-4 py-10 flex justify-center font-sans">
@@ -798,7 +917,9 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                     {/* Progress */}
                     <div className="px-3 sm:px-4 md:px-5 lg:px-6 pb-3">
                         <div className="flex justify-between items-center text-xs sm:text-sm text-gray-600">
-                            <span>ความคืบหน้า: {answeredRequired}/{totalRequired}</span>
+                            {sec?.key === 'summary'
+                                ? <span>ตรวจทานก่อนส่ง</span>
+                                : <span>ความคืบหน้า: {answeredRequired}/{totalRequired}</span>}
                             <span>{progressPct}%</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
@@ -807,7 +928,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                     </div>
 
                     {/* Validation */}
-                    {showValidation && (
+                    {showValidation && sec?.key !== 'summary' && (
                         <div className="mx-3 sm:mx-4 md:mx-5 lg:mx-6 mb-3 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
                             <div className="flex items-start gap-2">
                                 <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
@@ -832,6 +953,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                     )}
                     {sec?.key === 'knowledge' && renderKnowledge()}
                     {sec?.key === 'st5' && renderST5()}
+                    {sec?.key === 'summary' && renderSummary()}
                 </div>
 
                 {/* Nav Buttons */}
@@ -849,7 +971,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                         {step < ordered.length - 1 ? (
                             <button
                                 onClick={goNext}
-                                className={`flex items-center px-6 sm:px-7 md:px-8 lg:px-10 py-3 sm:py-3.5 md:py-4 lg:py-5 rounded-md sm:rounded-lg transition-colors text-sm sm:text-base md:text-lg lg:text-xl font-medium shadow-lg hover:shadow-xl ${answeredRequired === totalRequired ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500'}`}
+                                className={`flex items-center px-6 sm:px-7 md:px-8 lg:px-10 py-3 sm:py-3.5 md:py-4 lg:py-5 rounded-md sm:rounded-lg transition-colors text-sm sm:text-base md:text-lg lg:text-xl font-medium shadow-lg hover:shadow-xl ${sec?.key === 'summary' || answeredRequired === totalRequired ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-gray-300 text-gray-500'}`}
                             >
                                 <span>ถัดไป</span>
                                 <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 ml-2 sm:ml-2.5" />
@@ -860,7 +982,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                                 disabled={isSubmitting}
                                 className="flex items-center px-6 sm:px-7 md:px-8 lg:px-10 py-3 sm:py-3.5 md:py-4 lg:py-5 rounded-md sm:rounded-lg transition-colors text-sm sm:text-base md:text-lg lg:text-xl font-medium shadow-lg hover:shadow-xl bg-green-600 text-white hover:bg-green-700"
                             >
-                                เสร็จสิ้น
+                                ยืนยันและส่ง
                             </button>
                         )}
                     </div>
