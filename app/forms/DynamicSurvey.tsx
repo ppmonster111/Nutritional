@@ -302,7 +302,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         const ctrlLabel = surgeryCtrl
             ? t((surgeryCtrl.options || []).find((o: any) => o.value === ctrlVal)?.label_json, locale)
             : '';
-        const surgeryIsNo = /ไม่มี|no/i.test(ctrlLabel || '');
+        const surgeryIsYes = /^(มี|yes)$/i.test((ctrlLabel || '').trim());
 
         const hField = fields.find(f => f.key === 'height_cm') || fields.find(f => /ส่วนสูง|height/i.test(t(f.label_json, locale)));
         const wField = fields.find(f => f.key === 'weight_kg') || fields.find(f => /น้ำหนัก|weight/i.test(t(f.label_json, locale)));
@@ -316,7 +316,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
             const label = t(f.label_json, locale);
             const val = answers[f.key];
 
-            if (/ระบุ.*ผ่าตัด|รายละเอียด.*ผ่าตัด/i.test(label) && surgeryIsNo) return null;
+            if (/ระบุ.*ผ่าตัด|รายละเอียด.*ผ่าตัด/i.test(label) && !surgeryIsYes) return null;
             if (/ระบุ.*(โรคประจำตัว|ยาที่ใช้ประจำ)/i.test(label)) return null;
 
             if (f.type === 'text' || f.type === 'number') {
