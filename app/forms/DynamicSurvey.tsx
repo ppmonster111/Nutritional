@@ -330,12 +330,27 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                             type={isEmail ? 'email' : f.type === 'number' ? 'number' : 'text'}
                             className="w-full rounded-lg border px-3 py-2"
                             value={val ?? ''}
-                            onChange={(e) =>
-                                setValue(
-                                    f.key,
-                                    isEmail ? e.target.value.trim() : f.type === 'number' ? Number(e.target.value) : e.target.value
-                                )
-                            }
+                            min={0}
+                            max={f.key === 'age' ? 120 : f.key === 'height_cm' ? 250 : f.key === 'weight_kg' ? 300 : undefined}
+                            onChange={(e) => {
+                                const v = e.target.value;
+                                if (isEmail) {
+                                    setValue(f.key, v.trim());
+                                } else if (f.type === 'number') {
+                                    if (v === '') {
+                                        setValue(f.key, undefined);
+                                    } else {
+                                        let num = Number(v);
+                                        if (f.key === 'age' && num > 120) num = 120;
+                                        if (f.key === 'height_cm' && num > 250) num = 250;
+                                        if (f.key === 'weight_kg' && num > 300) num = 300;
+                                        if (num < 0) num = 0;
+                                        setValue(f.key, num);
+                                    }
+                                } else {
+                                    setValue(f.key, v);
+                                }
+                            }}
                             placeholder={isEmail ? 'name@example.com' : undefined}
                         />
                     </div>
@@ -607,9 +622,9 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
 
     /* ===================== Section 4: Knowledge ===================== */
     const knowledge = ordered.find(s => s?.key === 'knowledge');
-    const k41Rows = (knowledge?.fields || []).filter(f => f.meta_json?.table_group === 'k41');
-    const k42 = (knowledge?.fields || []).find(f => f.key === 'k42');
-    const k43 = (knowledge?.fields || []).find(f => f.key === 'k43');
+    const k41Rows = (knowledge?.fields || []).filter((f: any) => f.meta_json?.table_group === 'k41');
+    const k42 = (knowledge?.fields || []).find((f: any) => f.key === 'k42');
+    const k43 = (knowledge?.fields || []).find((f: any) => f.key === 'k43');
 
     const renderKnowledge = () => {
         if (!knowledge) return null;
@@ -625,7 +640,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                                 <thead>
                                     <tr className="bg-gray-100 border-b border-gray-200">
                                         <th className="p-2 text-left text-xs sm:text-sm font-semibold text-gray-700 min-w-[180px]">รายการ</th>
-                                        {(k41Rows[0]?.options || []).map(o => (
+                                        {(k41Rows[0]?.options || []).map((o: any) => (
                                             <th key={o.id} className="p-2 text-center text-xs sm:text-sm font-semibold text-gray-700 min-w-[120px]">
                                                 {t(o.label_json, locale)}
                                             </th>
@@ -633,7 +648,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {k41Rows.map(f => {
+                                    {k41Rows.map((f: any) => {
                                         const opts = f.options || [];
                                         const isAnswered = !!answers[f.key];
                                         const isHighlighted = showValidation && f.is_required && !isAnswered;
@@ -644,7 +659,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                                                     {t(f.label_json, locale)}
                                                     {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 inline-block ml-2" />}
                                                 </td>
-                                                {opts.map(o => (
+                                                {opts.map((o: any) => (
                                                     <td key={o.id} className="p-1 text-center">
                                                         <div
                                                             onClick={() => setValue(f.key, o.value)}
@@ -672,7 +687,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                         </h2>
                         <div id={k42.key}
                             className={`space-y-2 p-3 sm:p-4 md:p-5 rounded-lg transition-all duration-200 ${showValidation && k42.is_required && !answers[k42.key] ? 'bg-red-50 border-2 border-red-200' : 'bg-gray-50'}`}>
-                            {(k42.options || []).map(o => (
+                            {(k42.options || []).map((o: any) => (
                                 <div key={o.id}
                                     onClick={() => setValue(k42.key, o.value)}
                                     className={`flex items-center p-2 sm:p-2.5 md:p-3 border rounded-md cursor-pointer transition-all duration-200 ${answers[k42.key] === o.value ? 'bg-blue-50 border-blue-300 shadow-sm' : 'border-gray-200 bg-white hover:bg-gray-50 hover:border-blue-300 hover:shadow-sm'}`}>
@@ -695,7 +710,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                         </h2>
                         <div id={k43.key}
                             className={`space-y-2 p-3 sm:p-4 md:p-5 rounded-lg transition-all duration-200 ${showValidation && k43.is_required && !answers[k43.key] ? 'bg-red-50 border-2 border-red-200' : 'bg-gray-50'}`}>
-                            {(k43.options || []).map(o => (
+                            {(k43.options || []).map((o: any) => (
                                 <div key={o.id}
                                     onClick={() => setValue(k43.key, o.value)}
                                     className={`flex items-center p-2 sm:p-2.5 md:p-3 border rounded-md cursor-pointer transition-all duration-200 ${answers[k43.key] === o.value ? 'bg-blue-50 border-blue-300 shadow-sm' : 'border-gray-200 bg-white hover:bg-gray-50 hover:border-blue-300 hover:shadow-sm'}`}>
@@ -753,7 +768,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                             </tr>
                         </thead>
                         <tbody>
-                            {st5.fields.map(f => {
+                            {st5.fields.map((f: any) => {
                                 const isAnswered = !!answers[f.key];
                                 const isHighlighted = showValidation && f.is_required && !isAnswered;
                                 return (
