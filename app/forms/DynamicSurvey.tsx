@@ -220,6 +220,19 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
     );
 
     const goNext = () => {
+        // Check for invalid email in general section
+        if (sec?.key === 'general') {
+            const emailField = sec.fields.find((f: any) => f.key === 'email' || /email|อีเมล/i.test(t(f.label_json, locale)));
+            if (emailField) {
+                const emailVal = answers[emailField.key];
+                if (emailVal && !emailVal.endsWith('@gmail.com')) {
+                    alert('กรุณาใช้อีเมล @gmail.com เท่านั้น');
+                    document.getElementById(emailField.key)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
+                }
+            }
+        }
+
         if (sec?.key !== 'summary' && answeredRequired !== totalRequired) {
             setShowValidation(true);
             const first = (fieldsForProgress || []).find((f: any) => f.is_required && !hasAnswer(f));
@@ -321,6 +334,8 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
 
             if (f.type === 'text' || f.type === 'number') {
                 const isEmail = f.key === 'email' || /email|อีเมล/i.test(label);
+                const isValidEmail = !isEmail || !val || val.endsWith('@gmail.com');
+
                 const input = (
                     <div key={f.id} id={f.key} className="mb-4">
                         <label className="block font-medium mb-1">
@@ -328,7 +343,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                         </label>
                         <input
                             type={isEmail ? 'email' : f.type === 'number' ? 'number' : 'text'}
-                            className="w-full rounded-lg border px-3 py-2"
+                            className={`w-full rounded-lg border px-3 py-2 ${!isValidEmail ? 'border-red-500 focus:ring-red-500' : ''}`}
                             value={val ?? ''}
                             min={0}
                             max={f.key === 'age' ? 120 : f.key === 'height_cm' ? 250 : f.key === 'weight_kg' ? 300 : undefined}
@@ -351,8 +366,11 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                                     setValue(f.key, v);
                                 }
                             }}
-                            placeholder={isEmail ? 'name@example.com' : undefined}
+                            placeholder={isEmail ? 'name@gmail.com' : undefined}
                         />
+                        {!isValidEmail && (
+                            <p className="text-red-500 text-sm mt-1">กรุณาใช้อีเมล @gmail.com เท่านั้น</p>
+                        )}
                     </div>
                 );
                 if (wField && f.key === wField.key) {
