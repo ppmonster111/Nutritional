@@ -563,7 +563,42 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                 <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-medium text-blue-600 leading-relaxed border-l-4 border-blue-500 pl-3 sm:pl-4">
                     {title}
                 </h2>
-                <div className="overflow-x-auto">
+                {/* Mobile View: Cards */}
+                <div className="block md:hidden space-y-4">
+                    {rows.map((f: any) => {
+                        const isAnswered = !!answers[f.key];
+                        const isHighlighted = showValidation && f.is_required && !isAnswered;
+                        return (
+                            <div key={f.id} id={f.key} className={`p-4 rounded-lg border ${isHighlighted ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'} shadow-sm`}>
+                                <div className="font-medium text-gray-800 mb-3 text-sm">
+                                    {t(f.label_json, locale)}
+                                    {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 inline-block ml-2" />}
+                                </div>
+                                <div className="space-y-2">
+                                    {opts.map((o: any) => (
+                                        <div
+                                            key={o.id}
+                                            onClick={() => setValue(f.key, o.value)}
+                                            className={`flex items-center p-3 rounded-md border cursor-pointer transition-all ${answers[f.key] === o.value
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                                : 'border-gray-200 hover:bg-gray-50'
+                                                }`}
+                                        >
+                                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center mr-3 flex-shrink-0 ${answers[f.key] === o.value ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                                                }`}>
+                                                {answers[f.key] === o.value && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                            </div>
+                                            <span className="text-sm">{t(o.label_json, locale)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Desktop View: Table */}
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full border-collapse bg-gray-50 rounded-lg shadow-sm">
                         <thead>
                             <tr className="bg-gray-100 border-b border-gray-200">
@@ -635,7 +670,43 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                         <h2 className="text-sm sm:text-base md:text-lg lg:text-xl font-medium text-blue-600 leading-relaxed border-l-4 border-blue-500 pl-3 sm:pl-4">
                             4.1 เลือกกินหรือจะรักษาน้ำหนักอย่างมีสุขภาพดี
                         </h2>
-                        <div className="overflow-x-auto">
+                        {/* Mobile View: Cards */}
+                        <div className="block md:hidden space-y-4">
+                            {k41Rows.map((f: any) => {
+                                const opts = f.options || [];
+                                const isAnswered = !!answers[f.key];
+                                const isHighlighted = showValidation && f.is_required && !isAnswered;
+                                return (
+                                    <div key={f.id} id={f.key} className={`p-4 rounded-lg border ${isHighlighted ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'} shadow-sm`}>
+                                        <div className="font-medium text-gray-800 mb-3 text-sm">
+                                            {t(f.label_json, locale)}
+                                            {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 inline-block ml-2" />}
+                                        </div>
+                                        <div className="space-y-2">
+                                            {opts.map((o: any) => (
+                                                <div
+                                                    key={o.id}
+                                                    onClick={() => setValue(f.key, o.value)}
+                                                    className={`flex items-center p-3 rounded-md border cursor-pointer transition-all ${answers[f.key] === o.value
+                                                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                                        : 'border-gray-200 hover:bg-gray-50'
+                                                        }`}
+                                                >
+                                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center mr-3 flex-shrink-0 ${answers[f.key] === o.value ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                                                        }`}>
+                                                        {answers[f.key] === o.value && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
+                                                    </div>
+                                                    <span className="text-sm">{t(o.label_json, locale)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Desktop View: Table */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="w-full border-collapse bg-gray-50 rounded-lg shadow-sm">
                                 <thead>
                                     <tr className="bg-gray-100 border-b border-gray-200">
@@ -755,7 +826,39 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                     <div>โปรดประเมินความรู้สึกในช่วง 2–4 สัปดาห์ที่ผ่านมา และเลือกคะแนน 0–3 ให้ตรงกับอารมณ์ของคุณมากที่สุด</div>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Mobile View: Cards with Buttons */}
+                <div className="block md:hidden space-y-4">
+                    {st5.fields.map((f: any) => {
+                        const isAnswered = !!answers[f.key];
+                        const isHighlighted = showValidation && f.is_required && !isAnswered;
+                        return (
+                            <div key={f.id} id={f.key} className={`p-4 rounded-lg border ${isHighlighted ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'} shadow-sm`}>
+                                <div className="font-medium text-gray-800 mb-3 text-sm">
+                                    {t(f.label_json, locale)}
+                                    {isHighlighted && <AlertCircle className="w-4 h-4 text-red-500 inline-block ml-2" />}
+                                </div>
+                                <div className="flex justify-between gap-2">
+                                    {cols.map((o: any) => (
+                                        <button
+                                            key={o.id}
+                                            type="button"
+                                            onClick={() => setValue(f.key, o.value)}
+                                            className={`flex-1 py-2.5 rounded-lg border font-medium transition-all ${answers[f.key] === o.value
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105'
+                                                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                                }`}
+                                        >
+                                            {o.value}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Desktop View: Table */}
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full border-collapse bg-gray-50 rounded-lg shadow-sm">
                         <thead>
                             <tr className="bg-gray-100 border-b border-gray-200">
