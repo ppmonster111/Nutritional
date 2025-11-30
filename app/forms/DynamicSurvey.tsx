@@ -537,6 +537,12 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         if (score >= 14 && score <= 15) return 'red';
         return 'gray';
     };
+    const getSt5Color = (score: number) => {
+        if (score <= 4) return 'green';
+        if (score <= 7) return 'yellow';
+        if (score <= 9) return 'orange';
+        return 'red';
+    };
     const getScoreColorClasses = (color: string) => {
         switch (color) {
             case 'green': return { bg: 'bg-green-50', border: 'border-green-500', text: 'text-green-800', badge: 'bg-green-100 text-green-800' };
@@ -841,7 +847,7 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
             <div className="space-y-6">
                 <div className="space-y-2 bg-blue-50 p-3 sm:p-4 md:p-5 rounded-lg border-l-4 border-blue-500 text-xs sm:text-sm text-gray-700">
                     <div className="font-medium text-blue-800">คำแนะนำ</div>
-                    <div>โปรดประเมินความรู้สึกในช่วง 2–4 สัปดาห์ที่ผ่านมา และเลือกคะแนน 0–3 ให้ตรงกับอารมณ์ของคุณมากที่สุด</div>
+                    <div>โปรดประเมินความรู้สึกในช่วง 2–4 สัปดาห์ที่ผ่านมา และเลือกคะแนน 0 = ไม่มี, 1 = น้อย, 2 = ปานกลาง, 3 = มาก ให้ตรงกับอารมณ์ของคุณมากที่สุด</div>
                 </div>
 
                 {/* Mobile View: Cards with Buttons */}
@@ -954,25 +960,29 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
         const bsaValue = bsaMosteller(height, weight);
         const bsaTxt = bsaStatusText(bsaValue);
 
-        const Card = ({
-            title, score, max, img, msg,
-        }: { title: string; score: number; max: number; img: string; msg: string }) => {
-            const pct = (score / max) * 100;
-            const cls =
-                pct <= 33 ? 'bg-green-100 text-green-800 border-green-300'
-                    : pct <= 66 ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
-                        : 'bg-red-100 text-red-800 border-red-300';
+        // ใช้ mapping สีเดียวกับตารางใน Section 3
+        const DietCard = ({
+            title, score, img, msg,
+        }: { title: string; score: number; img: string; msg: string }) => {
+            const color = getScoreColor(score);                   // green/yellow/orange/red (diet rule)
+            const cc = getScoreColorClasses(color);               // { bg, border, text, badge }
             return (
-                <div className={`border-2 rounded-xl p-5 ${cls}`}>
+                <div className={`border-2 rounded-xl p-5 ${cc.bg} ${cc.text} ${cc.border}`}>
                     <div className="flex items-center gap-2 mb-3">
                         <Image src={img} alt="" width={20} height={20} />
                         <h3 className="font-semibold">{title}</h3>
                     </div>
-                    <div className="text-3xl font-bold mb-2">{score} / {max}</div>
+                    <div className="text-3xl font-bold mb-2">
+                        <span className={`px-2 py-1 rounded-md ${cc.badge}`}>{score}</span> / 15
+                    </div>
                     <p className="text-sm leading-relaxed">{msg}</p>
                 </div>
             );
         };
+
+        // สีของ ST-5 ตามช่วง 0-4/5-7/8-9/10-15
+        const st5Color = getSt5Color(st5Score);
+        const st5c = getScoreColorClasses(st5Color);
 
         return (
             <div className="space-y-8">
@@ -980,41 +990,42 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 mb-4">ส่วนที่ 3: พฤติกรรมการบริโภค</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card
+                        <DietCard
                             title="การบริโภคหวาน"
                             score={diet31Score}
-                            max={15}
                             img="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/candies-yHU2GBvOgqIfboeGIzin1EXolXzbwE.png"
                             msg={getScoreMessage(diet31Score, 'sugar')}
                         />
-                        <Card
+                        <DietCard
                             title="การบริโภคไขมัน"
                             score={diet32Score}
-                            max={15}
                             img="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/fat-V7zwtwaZDVOgykfi60KxdXiVoOWQlV.png"
                             msg={getScoreMessage(diet32Score, 'fat')}
                         />
-                        <Card
+                        <DietCard
                             title="การบริโภคโซเดียม"
                             score={diet33Score}
-                            max={15}
                             img="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/sodium-XtUm0VmipFjvKOQF95kFkwRsDEuzEf.png"
                             msg={getScoreMessage(diet33Score, 'sodium')}
                         />
                     </div>
                 </div>
 
-                {/* ST-5 summary */}
+                {/* ST-5 summary — ใช้ชุดสีเดียวกันกับ diet */}
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 mb-4">ส่วนที่ 5: ความเครียด</h2>
-                    <div className="border-2 rounded-xl p-6">
+                    <div className={`border-2 rounded-xl p-6 ${st5c.bg} ${st5c.text} ${st5c.border}`}>
                         <div className="text-center mb-4">
-                            <div className="text-4xl font-bold mb-2">{st5Score} / 15</div>
+                            <div className="text-4xl font-bold mb-2">
+                                <span className={`px-2 py-1 rounded-md ${st5c.badge}`}>{st5Score}</span> / 15
+                            </div>
                             <div className="text-lg font-semibold">{st5Level || '-'}</div>
                         </div>
-                        {st5Score >= 10 && (
-                            <div className="mt-4 pt-4 border-t border-red-300">
-                                <p className="text-sm font-medium text-center text-red-700">
+
+                        {/* ข้อความเตือนถ้าคะแนนสูง */}
+                        {(st5Color === 'orange' || st5Color === 'red') && (
+                            <div className="mt-4 pt-4 border-t border-current/30">
+                                <p className="text-sm font-medium text-center">
                                     ระดับความเครียดค่อนข้างสูง แนะนำปรึกษาผู้เชี่ยวชาญ
                                 </p>
                             </div>
@@ -1027,16 +1038,21 @@ export default function DynamicSurvey({ schema, locale }: { schema: Schema; loca
                     <h2 className="text-xl font-bold text-gray-800 mb-4">สรุปตัวชี้วัดร่างกาย</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="p-4 rounded-xl border bg-gray-50">
-                            <div className="text-sm text-gray-700"><span className="font-medium">BMI:</span> {bmiValue ?? '-'} {bmiStatus ? `(${bmiStatus})` : ''}</div>
+                            <div className="text-sm text-gray-700">
+                                <span className="font-medium">BMI:</span> {bmiValue ?? '-'} {bmiStatus ? `(${bmiStatus})` : ''}
+                            </div>
                         </div>
                         <div className="p-4 rounded-xl border bg-gray-50">
-                            <div className="text-sm text-gray-700"><span className="font-medium">BSA:</span> {bsaValue ?? '-'} {bsaTxt ? `(${bsaTxt})` : ''}</div>
+                            <div className="text-sm text-gray-700">
+                                <span className="font-medium">BSA:</span> {bsaValue ?? '-'} {bsaTxt ? `(${bsaTxt})` : ''}
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         );
     };
+
 
     /* -------------------- Layout -------------------- */
     return (
